@@ -35,6 +35,9 @@ AUTOTHROTTLE_START_DELAY = 1
 AUTOTHROTTLE_MAX_DELAY = 10
 AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 
+# Item pipelines
+ITEM_PIPELINES = {
     "oenb_scraper.pipelines.DeduplicationPipeline": 100,
     "oenb_scraper.pipelines.FileSizePipeline": 200,
     # "oenb_scraper.pipelines.PdfAnalysisPipeline": 300,  # Disabled for performance, moved to post-processing
+}
