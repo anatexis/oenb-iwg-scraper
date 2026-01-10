@@ -1,0 +1,17 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data files (regenerated)
+data/*.json
+output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
