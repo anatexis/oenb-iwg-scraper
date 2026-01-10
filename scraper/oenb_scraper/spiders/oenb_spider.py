@@ -30,6 +30,10 @@ class OenbSpider(scrapy.Spider):
 
     def parse(self, response):
         """Parse a page for downloads and follow links."""
+        # Skip non-text responses (images, etc.)
+        if not hasattr(response, 'text'):
+            return
+
         page_url = response.url
         page_section = self._extract_section(page_url)
         page_date = self._extract_page_date(response)
@@ -91,8 +95,11 @@ class OenbSpider(scrapy.Spider):
         return any(re.search(pattern, url, re.I) for pattern in self.SHINY_PATTERNS)
 
     def _is_internal_link(self, url: str) -> bool:
-        """Check if URL is internal to oenb.at."""
+        """Check if URL is internal to oenb.at and uses http(s)."""
         parsed = urlparse(url)
+        # Only follow http/https links
+        if parsed.scheme and parsed.scheme not in ("http", "https"):
+            return False
         return parsed.netloc in self.allowed_domains or parsed.netloc == ""
 
     def _extract_section(self, url: str) -> str:
