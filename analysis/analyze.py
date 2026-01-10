@@ -50,6 +50,12 @@ def main():
         print("No items found. Check if the scraper ran successfully.")
         sys.exit(1)
 
+    # Run Deep Scan
+    from analysis.deep_scan import DeepScanner
+    print("\nRunning Deep Scan (False Hope Detector)...")
+    scanner = DeepScanner(limit_percent=0.1, min_items=5)
+    items = scanner.scan_items(items)
+
     # Generate outputs
     dashboard_path = output_dir / "dashboard.html"
     csv_path = output_dir / "downloads.csv"

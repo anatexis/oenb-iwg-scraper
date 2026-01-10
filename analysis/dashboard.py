@@ -15,6 +15,40 @@ def load_data(json_path: str) -> list[dict]:
         return json.load(f)
 
 
+def generate_usage_snippets(item: dict) -> dict:
+    """Generate usage snippets for a download item."""
+    url = item.get("url", "")
+    base_name = url.split("/")[-1] or "data"
+    file_type = item.get("file_type", "").lower()
+    
+    snippets = {}
+    
+    # Python
+    if file_type == "csv":
+        snippets["python"] = f"import pandas as pd\n# Requires: pip install pandas\ndf = pd.read_csv('{url}')\nprint(df.head())"
+    elif file_type in ["xlsx", "xls"]:
+        snippets["python"] = f"import pandas as pd\n# Requires: pip install pandas openpyxl\ndf = pd.read_excel('{url}')\nprint(df.head())"
+    elif file_type == "xml":
+        snippets["python"] = f"import pandas as pd\n# Requires: pip install pandas lxml\ndf = pd.read_xml('{url}')\nprint(df.head())"
+    elif file_type == "json":
+        snippets["python"] = f"import pandas as pd\n# Requires: pip install pandas\ndf = pd.read_json('{url}')\nprint(df.head())"
+    else:
+        snippets["python"] = f"import requests\n# Requires: pip install requests\nr = requests.get('{url}')\nwith open('{base_name}', 'wb') as f:\n    f.write(r.content)"
+
+    # R
+    if file_type == "csv":
+        snippets["r"] = f"# R script\ndf <- read.csv('{url}')\nhead(df)"
+    elif file_type in ["xlsx", "xls"]:
+        snippets["r"] = f"# R script\nlibrary(readxl)\ndownload.file('{url}', destfile='temp.xlsx', mode='wb')\ndf <- read_excel('temp.xlsx')\nhead(df)"
+    else:
+        snippets["r"] = f"# R script\ndownload.file('{url}', destfile='{base_name}', mode='wb')"
+
+    # cURL
+    snippets["curl"] = f"curl -O {url}"
+
+    return snippets
+
+
 def generate_dashboard(items: list[dict], output_path: str) -> None:
     """Generate HTML dashboard from items."""
     # Enrich with IWG scores
@@ -22,6 +56,10 @@ def generate_dashboard(items: list[dict], output_path: str) -> None:
 
     # Sort by score descending
     enriched.sort(key=lambda x: x["iwg_score"], reverse=True)
+
+    # Add usage snippets
+    for item in enriched:
+        item["snippets"] = generate_usage_snippets(item)
 
     # Calculate statistics
     total_count = len(enriched)

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -53,13 +54,13 @@
             background: white;
             border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
         }
 
         .card-title {
@@ -75,10 +76,21 @@
             font-weight: 700;
         }
 
-        .card.total .card-value { color: #2c5282; }
-        .card.high .card-value { color: #276749; }
-        .card.medium .card-value { color: #c05621; }
-        .card.low .card-value { color: #9b2c2c; }
+        .card.total .card-value {
+            color: #2c5282;
+        }
+
+        .card.high .card-value {
+            color: #276749;
+        }
+
+        .card.medium .card-value {
+            color: #c05621;
+        }
+
+        .card.low .card-value {
+            color: #9b2c2c;
+        }
 
         /* Statistics Section */
         .statistics {
@@ -86,7 +98,7 @@
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .statistics h2 {
@@ -126,7 +138,7 @@
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .filters h2 {
@@ -232,7 +244,7 @@
         .table-container {
             background: white;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
 
@@ -360,9 +372,17 @@
             font-size: 1rem;
         }
 
-        .score-high { color: #276749; }
-        .score-medium { color: #c05621; }
-        .score-low { color: #9b2c2c; }
+        .score-high {
+            color: #276749;
+        }
+
+        .score-medium {
+            color: #c05621;
+        }
+
+        .score-low {
+            color: #9b2c2c;
+        }
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -396,6 +416,7 @@
         }
     </style>
 </head>
+
 <body>
     <header>
         <div class="container">
@@ -509,17 +530,15 @@
                             <th data-sort="language">Sprache <span class="sort-indicator">▼</span></th>
                             <th data-sort="iwg_score">IWG Score <span class="sort-indicator">▼</span></th>
                             <th data-sort="found_on_page">Fundort <span class="sort-indicator">▼</span></th>
+                            <th>Nutzung</th>
                         </tr>
                     </thead>
                     <tbody id="table-body">
                         {% for item in items %}
-                        <tr data-confidence="{{ item.iwg_confidence }}"
-                            data-filetype="{{ item.file_type }}"
-                            data-section="{{ item.page_section }}"
-                            data-language="{{ item.language }}"
+                        <tr data-confidence="{{ item.iwg_confidence }}" data-filetype="{{ item.file_type }}"
+                            data-section="{{ item.page_section }}" data-language="{{ item.language }}"
                             data-languages="{{ item.found_in_languages|join(',') if item.found_in_languages else item.language }}"
-                            data-title="{{ item.title|lower if item.title else '' }}"
-                            data-url="{{ item.url|lower }}">
+                            data-title="{{ item.title|lower if item.title else '' }}" data-url="{{ item.url|lower }}">
                             <td class="title-cell">
                                 <a href="{{ item.url }}" target="_blank" title="{{ item.title }}">
                                     {{ item.title|truncate(60) if item.title else item.url|truncate(60) }}
@@ -537,11 +556,59 @@
                             <td>
                                 <span class="score score-{{ item.iwg_confidence }}">{{ item.iwg_score }}</span>
                                 <span class="badge badge-{{ item.iwg_confidence }}">{{ item.iwg_confidence }}</span>
+                                {% if item.scan_result and item.scan_result.status == 'error' %}
+                                <span title="Deep Scan Failed: {{ item.scan_result.message }}"
+                                    style="color: #e53e3e; cursor: help; font-size: 1.2rem; vertical-align: middle; margin-left: 5px;">⚠️</span>
+                                {% endif %}
                             </td>
                             <td class="url-cell">
                                 <a href="{{ item.found_on_page }}" target="_blank" title="{{ item.found_on_page }}">
                                     {{ item.found_on_page|truncate(40) }}
                                 </a>
+                            </td>
+                            <td>
+                                <details>
+                                    <summary style="cursor: pointer; color: #2c5282; font-size: 0.85rem;">Code</summary>
+                                    <div style="position: absolute; right: 20px; background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 100; width: 400px; display: none;"
+                                        class="snippet-popup">
+                                        <div style="margin-bottom: 10px;">
+                                            <strong
+                                                style="display: block; margin-bottom: 5px; color: #4a5568;">Python</strong>
+                                            <button
+                                                style="float: right; font-size: 0.7rem; padding: 2px 5px; cursor: pointer;"
+                                                onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Kopieren</button>
+                                            <pre
+                                                style="background: #f8fafc; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.75rem;">{{ item.snippets.python }}</pre>
+                                        </div>
+                                        <div>
+                                            <strong
+                                                style="display: block; margin-bottom: 5px; color: #4a5568;">R</strong>
+                                            <button
+                                                style="float: right; font-size: 0.7rem; padding: 2px 5px; cursor: pointer;"
+                                                onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Kopieren</button>
+                                            <pre
+                                                style="background: #f8fafc; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.75rem;">{{ item.snippets.r }}</pre>
+                                        </div>
+                                    </div>
+                                    <script>
+                                        // Simple popup logic
+                                        document.currentScript.parentElement.querySelector('summary').addEventListener('click', function (e) {
+                                            e.preventDefault();
+                                            const popup = this.nextElementSibling;
+                                            const isVisible = popup.style.display === 'block';
+                                            // Close all others
+                                            document.querySelectorAll('.snippet-popup').forEach(p => p.style.display = 'none');
+                                            // Toggle this one
+                                            if (!isVisible) {
+                                                popup.style.display = 'block';
+                                                // Position near the click
+                                                const rect = this.getBoundingClientRect();
+                                                popup.style.top = (window.scrollY + rect.bottom + 5) + 'px';
+                                                popup.style.right = (window.innerWidth - rect.right) + 'px';
+                                            }
+                                        });
+                                    </script>
+                                </details>
                             </td>
                         </tr>
                         {% endfor %}
@@ -557,7 +624,7 @@
 
     <script>
         // Data for export
-        const allItems = {{ items_json|safe }};
+        const allItems = {{ items_json| safe }};
 
         // Filter elements
         const filterConfidence = document.getElementById('filter-confidence');
@@ -656,7 +723,7 @@
             rows.sort((a, b) => {
                 let aVal, bVal;
 
-                switch(column) {
+                switch (column) {
                     case 'title':
                         aVal = a.dataset.title || '';
                         bVal = b.dataset.title || '';
@@ -769,4 +836,5 @@
         document.querySelector('th[data-sort="iwg_score"]').classList.add('sorted');
     </script>
 </body>
+
 </html>
