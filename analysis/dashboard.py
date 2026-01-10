@@ -79,11 +79,14 @@ def generate_csv(items: list[dict], output_path: str) -> None:
 
     headers = [
         "URL", "Titel", "Typ", "Dateityp", "Größe (Bytes)", "Bereich",
-        "IWG Score", "Konfidenz", "Maschinenlesbar", "Hat Tabellen", "Fundort"
+        "Sprache", "Bilingual", "IWG Score", "Konfidenz", "Maschinenlesbar",
+        "Hat Tabellen", "Fundort"
     ]
 
     lines = [";".join(headers)]
     for item in enriched:
+        langs = item.get("found_in_languages") or [item.get("language", "de")]
+        is_bilingual = "de" in langs and "en" in langs
         row = [
             item.get("url", ""),
             (item.get("title") or "").replace(";", ","),
@@ -91,6 +94,8 @@ def generate_csv(items: list[dict], output_path: str) -> None:
             item.get("file_type", ""),
             str(item.get("file_size_bytes") or ""),
             item.get("page_section", ""),
+            item.get("language", "de"),
+            "Ja" if is_bilingual else "Nein",
             str(item.get("iwg_score", "")),
             item.get("iwg_confidence", ""),
             str(item.get("machine_readable", "")),

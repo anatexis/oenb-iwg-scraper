@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scraper"))
 
 import oenb_scraper.pipelines as pipelines_module
@@ -168,3 +170,66 @@ class TestPdfAnalysisCaching:
         with patch("oenb_scraper.pipelines.analyze_pdf") as mock:
             pipeline.process_item(item, spider)
             mock.assert_not_called()
+
+
+class TestDeduplicationPipeline:
+    """Test deduplication with cross-language tracking."""
+
+    def test_first_item_gets_language_list(self):
+        from oenb_scraper.pipelines import DeduplicationPipeline
+
+        spider = MagicMock()
+        pipeline = DeduplicationPipeline()
+
+        item = {"url": "https://example.com/doc.pdf", "language": "de"}
+        result = pipeline.process_item(item, spider)
+
+        assert result["found_in_languages"] == ["de"]
+
+    def test_duplicate_url_is_dropped(self):
+        from oenb_scraper.pipelines import DeduplicationPipeline
+        import scrapy.exceptions
+
+        spider = MagicMock()
+        pipeline = DeduplicationPipeline()
+
+        item1 = {"url": "https://example.com/doc.pdf", "language": "de"}
+        item2 = {"url": "https://example.com/doc.pdf", "language": "de"}
+
+        pipeline.process_item(item1, spider)
+
+        with pytest.raises(scrapy.exceptions.DropItem):
+            pipeline.process_item(item2, spider)
+
+    def test_duplicate_in_different_language_updates_original(self):
+        from oenb_scraper.pipelines import DeduplicationPipeline
+        import scrapy.exceptions
+
+        spider = MagicMock()
+        pipeline = DeduplicationPipeline()
+
+        item_de = {"url": "https://example.com/doc.pdf", "language": "de"}
+        item_en = {"url": "https://example.com/doc.pdf", "language": "en"}
+
+        result = pipeline.process_item(item_de, spider)
+
+        with pytest.raises(scrapy.exceptions.DropItem):
+            pipeline.process_item(item_en, spider)
+
+        # Original item should now have both languages
+        assert result["found_in_languages"] == ["de", "en"]
+
+    def test_different_urls_both_kept(self):
+        from oenb_scraper.pipelines import DeduplicationPipeline
+
+        spider = MagicMock()
+        pipeline = DeduplicationPipeline()
+
+        item1 = {"url": "https://example.com/doc1.pdf", "language": "de"}
+        item2 = {"url": "https://example.com/doc2.pdf", "language": "en"}
+
+        result1 = pipeline.process_item(item1, spider)
+        result2 = pipeline.process_item(item2, spider)
+
+        assert result1["found_in_languages"] == ["de"]
+        assert result2["found_in_languages"] == ["en"]

@@ -86,6 +86,25 @@ class TestInternalLinkDetection:
         assert not self.spider._is_internal_link("tel:+43123456")
 
 
+class TestLanguageExtraction:
+    """Test language extraction from URL."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_german_page_returns_de(self):
+        assert self.spider._extract_language("https://www.oenb.at/Statistik/data") == "de"
+
+    def test_english_page_returns_en(self):
+        assert self.spider._extract_language("https://www.oenb.at/en/Statistics/data") == "en"
+
+    def test_root_returns_de(self):
+        assert self.spider._extract_language("https://www.oenb.at/") == "de"
+
+    def test_english_root_returns_en(self):
+        assert self.spider._extract_language("https://www.oenb.at/en/") == "en"
+
+
 class TestSectionExtraction:
     """Test page section extraction from URL."""
 
@@ -100,6 +119,13 @@ class TestSectionExtraction:
 
     def test_root_returns_startseite(self):
         assert self.spider._extract_section("https://www.oenb.at/") == "Startseite"
+
+    def test_english_section_skips_en_prefix(self):
+        """Section should be 'Calendar' not 'en' for English pages."""
+        assert self.spider._extract_section("https://www.oenb.at/en/Calendar/2020") == "Calendar"
+
+    def test_english_root_returns_startseite(self):
+        assert self.spider._extract_section("https://www.oenb.at/en/") == "Startseite"
 
 
 class TestFileExtensionExtraction:

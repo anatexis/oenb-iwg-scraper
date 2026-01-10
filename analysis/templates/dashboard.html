@@ -316,6 +316,16 @@
             color: #4a5568;
         }
 
+        .badge-lang {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .badge-bilingual {
+            background: #c3dafe;
+            color: #3c366b;
+        }
+
         /* Links */
         a {
             color: #2c5282;
@@ -460,6 +470,15 @@
                     </select>
                 </div>
                 <div class="filter-group">
+                    <label for="filter-language">Sprache</label>
+                    <select id="filter-language">
+                        <option value="">Alle</option>
+                        <option value="de">Deutsch</option>
+                        <option value="en">Englisch</option>
+                        <option value="both">DE + EN (bilingual)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="filter-search">Suche</label>
                     <input type="text" id="filter-search" placeholder="Titel oder URL durchsuchen...">
                 </div>
@@ -487,6 +506,7 @@
                             <th data-sort="title" class="sorted">Titel <span class="sort-indicator">▼</span></th>
                             <th data-sort="file_type">Typ <span class="sort-indicator">▼</span></th>
                             <th data-sort="page_section">Bereich <span class="sort-indicator">▼</span></th>
+                            <th data-sort="language">Sprache <span class="sort-indicator">▼</span></th>
                             <th data-sort="iwg_score">IWG Score <span class="sort-indicator">▼</span></th>
                             <th data-sort="found_on_page">Fundort <span class="sort-indicator">▼</span></th>
                         </tr>
@@ -496,6 +516,8 @@
                         <tr data-confidence="{{ item.iwg_confidence }}"
                             data-filetype="{{ item.file_type }}"
                             data-section="{{ item.page_section }}"
+                            data-language="{{ item.language }}"
+                            data-languages="{{ item.found_in_languages|join(',') if item.found_in_languages else item.language }}"
                             data-title="{{ item.title|lower if item.title else '' }}"
                             data-url="{{ item.url|lower }}">
                             <td class="title-cell">
@@ -505,6 +527,13 @@
                             </td>
                             <td><span class="badge badge-type">{{ item.file_type|upper }}</span></td>
                             <td>{{ item.page_section|truncate(30) if item.page_section else '-' }}</td>
+                            <td>
+                                {% if item.found_in_languages and item.found_in_languages|length > 1 %}
+                                <span class="badge badge-bilingual">DE+EN</span>
+                                {% else %}
+                                <span class="badge badge-lang">{{ item.language|upper }}</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <span class="score score-{{ item.iwg_confidence }}">{{ item.iwg_score }}</span>
                                 <span class="badge badge-{{ item.iwg_confidence }}">{{ item.iwg_confidence }}</span>
@@ -534,6 +563,7 @@
         const filterConfidence = document.getElementById('filter-confidence');
         const filterFiletype = document.getElementById('filter-filetype');
         const filterSection = document.getElementById('filter-section');
+        const filterLanguage = document.getElementById('filter-language');
         const filterSearch = document.getElementById('filter-search');
         const tableBody = document.getElementById('table-body');
         const visibleCount = document.getElementById('visible-count');
@@ -547,6 +577,7 @@
             const confidence = filterConfidence.value.toLowerCase();
             const filetype = filterFiletype.value.toLowerCase();
             const section = filterSection.value;
+            const language = filterLanguage.value;
             const search = filterSearch.value.toLowerCase();
 
             const rows = tableBody.querySelectorAll('tr');
@@ -556,6 +587,8 @@
                 const rowConfidence = row.dataset.confidence;
                 const rowFiletype = row.dataset.filetype;
                 const rowSection = row.dataset.section;
+                const rowLanguage = row.dataset.language;
+                const rowLanguages = row.dataset.languages || '';
                 const rowTitle = row.dataset.title;
                 const rowUrl = row.dataset.url;
 
@@ -564,6 +597,15 @@
                 if (confidence && rowConfidence !== confidence) show = false;
                 if (filetype && rowFiletype !== filetype) show = false;
                 if (section && rowSection !== section) show = false;
+                if (language) {
+                    if (language === 'both') {
+                        // Show only items found in both languages
+                        if (!rowLanguages.includes('de') || !rowLanguages.includes('en')) show = false;
+                    } else {
+                        // Show items found in the selected language
+                        if (rowLanguage !== language) show = false;
+                    }
+                }
                 if (search && !rowTitle.includes(search) && !rowUrl.includes(search)) show = false;
 
                 row.style.display = show ? '' : 'none';
@@ -579,6 +621,7 @@
             filterConfidence.value = '';
             filterFiletype.value = '';
             filterSection.value = '';
+            filterLanguage.value = '';
             filterSearch.value = '';
             applyFilters();
         }
@@ -626,6 +669,10 @@
                         aVal = a.dataset.section || '';
                         bVal = b.dataset.section || '';
                         break;
+                    case 'language':
+                        aVal = a.dataset.languages || '';
+                        bVal = b.dataset.languages || '';
+                        break;
                     case 'iwg_score':
                         aVal = parseFloat(a.querySelector('.score').textContent) || 0;
                         bVal = parseFloat(b.querySelector('.score').textContent) || 0;
@@ -672,20 +719,26 @@
             });
 
             // Create CSV
-            const headers = ['URL', 'Titel', 'Typ', 'Dateityp', 'Groesse (Bytes)', 'Bereich', 'IWG Score', 'Konfidenz', 'Maschinenlesbar', 'Hat Tabellen', 'Fundort'];
-            const rows = filtered.map(item => [
-                item.url || '',
-                (item.title || '').replace(/;/g, ','),
-                item.type || '',
-                item.file_type || '',
-                item.file_size_bytes || '',
-                item.page_section || '',
-                item.iwg_score || '',
-                item.iwg_confidence || '',
-                item.machine_readable || '',
-                item.has_tables || '',
-                item.found_on_page || ''
-            ]);
+            const headers = ['URL', 'Titel', 'Typ', 'Dateityp', 'Groesse (Bytes)', 'Bereich', 'Sprache', 'Bilingual', 'IWG Score', 'Konfidenz', 'Maschinenlesbar', 'Hat Tabellen', 'Fundort'];
+            const rows = filtered.map(item => {
+                const langs = item.found_in_languages || [item.language];
+                const isBilingual = langs.includes('de') && langs.includes('en');
+                return [
+                    item.url || '',
+                    (item.title || '').replace(/;/g, ','),
+                    item.type || '',
+                    item.file_type || '',
+                    item.file_size_bytes || '',
+                    item.page_section || '',
+                    item.language || '',
+                    isBilingual ? 'Ja' : 'Nein',
+                    item.iwg_score || '',
+                    item.iwg_confidence || '',
+                    item.machine_readable || '',
+                    item.has_tables || '',
+                    item.found_on_page || ''
+                ];
+            });
 
             let csv = '\uFEFF'; // BOM for Excel
             csv += headers.join(';') + '\n';
@@ -704,6 +757,7 @@
         filterConfidence.addEventListener('change', applyFilters);
         filterFiletype.addEventListener('change', applyFilters);
         filterSection.addEventListener('change', applyFilters);
+        filterLanguage.addEventListener('change', applyFilters);
         filterSearch.addEventListener('input', applyFilters);
 
         // Sort headers

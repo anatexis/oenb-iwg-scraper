@@ -15,3 +15,5 @@ class DownloadItem(scrapy.Item):
     scraped_at = scrapy.Field()
     machine_readable = scrapy.Field()  # For PDFs: True/False/None
     has_tables = scrapy.Field()  # For PDFs: True/False/None
+    language = scrapy.Field()  # 'de' or 'en'
+    found_in_languages = scrapy.Field()  # ['de'], ['en'], or ['de', 'en'] for duplicates

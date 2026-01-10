@@ -80,14 +80,26 @@ class PdfAnalysisPipeline:
 
 
 class DeduplicationPipeline:
-    """Remove duplicate URLs."""
+    """Track duplicate URLs and mark items found in multiple languages."""
 
     def __init__(self):
-        self.seen_urls = set()
+        self.seen_urls = {}  # url -> item reference
 
     def process_item(self, item, spider):
         url = item.get("url")
+        language = item.get("language", "de")
+
         if url in self.seen_urls:
+            # URL already seen - update the original item's found_in_languages
+            original_item = self.seen_urls[url]
+            existing_languages = original_item.get("found_in_languages") or []
+            if language not in existing_languages:
+                existing_languages.append(language)
+                original_item["found_in_languages"] = existing_languages
+                spider.logger.debug(f"Duplicate URL found in {language}: {url}")
             raise scrapy.exceptions.DropItem(f"Duplicate URL: {url}")
-        self.seen_urls.add(url)
+
+        # First occurrence - initialize found_in_languages
+        item["found_in_languages"] = [language]
+        self.seen_urls[url] = item
         return item

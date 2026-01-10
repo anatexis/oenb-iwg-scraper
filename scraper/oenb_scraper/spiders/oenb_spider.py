@@ -36,6 +36,7 @@ class OenbSpider(scrapy.Spider):
 
         page_url = response.url
         page_section = self._extract_section(page_url)
+        page_language = self._extract_language(page_url)
         page_date = self._extract_page_date(response)
 
         # Find all links on the page
@@ -54,6 +55,7 @@ class OenbSpider(scrapy.Spider):
                     page_section=page_section,
                     section_heading=self._find_section_heading(link, response),
                     page_date=page_date,
+                    language=page_language,
                 )
 
             # Check if it's a Shiny app
@@ -65,6 +67,7 @@ class OenbSpider(scrapy.Spider):
                     page_section=page_section,
                     section_heading=self._find_section_heading(link, response),
                     page_date=page_date,
+                    language=page_language,
                 )
 
             # Follow internal links
@@ -82,6 +85,7 @@ class OenbSpider(scrapy.Spider):
                     page_section=page_section,
                     section_heading="",
                     page_date=page_date,
+                    language=page_language,
                 )
 
     def _is_download(self, url: str) -> bool:
@@ -102,10 +106,21 @@ class OenbSpider(scrapy.Spider):
             return False
         return parsed.netloc in self.allowed_domains or parsed.netloc == ""
 
-    def _extract_section(self, url: str) -> str:
-        """Extract page section from URL path."""
+    def _extract_language(self, url: str) -> str:
+        """Extract language from URL path (de or en)."""
         parsed = urlparse(url)
         parts = [p for p in parsed.path.split("/") if p]
+        if parts and parts[0].lower() == "en":
+            return "en"
+        return "de"
+
+    def _extract_section(self, url: str) -> str:
+        """Extract page section from URL path, skipping language prefix."""
+        parsed = urlparse(url)
+        parts = [p for p in parsed.path.split("/") if p]
+        # Skip 'en' language prefix if present
+        if parts and parts[0].lower() == "en":
+            parts = parts[1:]
         if parts:
             return parts[0]
         return "Startseite"
@@ -157,6 +172,8 @@ class OenbSpider(scrapy.Spider):
         item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
         item["machine_readable"] = None  # Will be filled by pipeline for PDFs
         item["has_tables"] = None
+        item["language"] = kwargs["language"]
+        item["found_in_languages"] = None  # Will be filled by pipeline
         return item
 
     def _create_shiny_item(self, **kwargs) -> DownloadItem:
@@ -174,4 +191,6 @@ class OenbSpider(scrapy.Spider):
         item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
         item["machine_readable"] = True  # Shiny apps have data
         item["has_tables"] = None
+        item["language"] = kwargs["language"]
+        item["found_in_languages"] = None  # Will be filled by pipeline
         return item
