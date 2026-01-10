@@ -24,7 +24,8 @@ echo "Press Ctrl+C to stop early."
 echo ""
 
 cd scraper
-scrapy crawl oenb -o ../data/downloads.json -t json
+rm -f ../data/downloads.json
+scrapy crawl oenb -O ../data/downloads.json
 cd ..
 
 # Run analysis
