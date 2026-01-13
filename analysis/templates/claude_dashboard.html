@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OeNB IWG Review Dashboard</title>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --secondary: #2c5282;
+            --accent: #3182ce;
+            --success: #38a169;
+            --warning: #d69e2e;
+            --danger: #c53030;
+            --gray: #718096;
+            --light: #f7fafc;
+            --white: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--light);
+            color: #1a202c;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header h1 { font-size: 1.8rem; font-weight: 600; }
+        .header p { opacity: 0.9; font-size: 0.95rem; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--white);
+            border-bottom: 2px solid var(--border);
+            padding: 0 1rem;
+        }
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 0.95rem;
+            color: var(--gray);
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: var(--accent); }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            font-weight: 600;
+        }
+        .tab .badge {
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            margin-left: 6px;
+        }
+
+        /* Container */
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .card {
+            background: var(--white);
+            padding: 1.25rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .card h3 {
+            font-size: 0.8rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        .card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .card.success .value { color: var(--success); }
+        .card.warning .value { color: var(--warning); }
+        .card.danger .value { color: var(--danger); }
+
+        /* Progress Bar */
+        .progress-card {
+            background: var(--white);
+            padding: 1.25rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .progress-card h3 {
+            font-size: 0.9rem;
+            color: var(--primary);
+            margin-bottom: 0.75rem;
+        }
+        .progress-bar {
+            height: 24px;
+            background: var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+        }
+        .progress-segment {
+            height: 100%;
+            transition: width 0.3s;
+        }
+        .progress-approved { background: var(--success); }
+        .progress-rejected { background: var(--gray); }
+        .progress-pending { background: var(--border); }
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+
+        /* Charts Container */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .chart-card {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .chart-card h3 {
+            font-size: 1rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        /* Donut Chart */
+        .donut-container {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        .donut {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            position: relative;
+        }
+        .donut-hole {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: var(--white);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .donut-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-dot.high { background: var(--success); }
+        .legend-dot.medium { background: var(--warning); }
+        .legend-dot.low { background: var(--danger); }
+
+        /* Bar Chart */
+        .bar-chart { display: flex; flex-direction: column; gap: 0.5rem; }
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .bar-label {
+            width: 80px;
+            font-size: 0.8rem;
+            text-align: right;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .bar-track {
+            flex: 1;
+            height: 20px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .bar-value {
+            width: 40px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Filters */
+        .filters-bar {
+            background: var(--white);
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .filter-group label {
+            font-size: 0.8rem;
+            color: var(--gray);
+            font-weight: 500;
+        }
+        .filter-group select, .filter-group input {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--secondary); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-secondary { background: var(--border); color: var(--gray); }
+        .btn-secondary:hover { background: #cbd5e0; }
+        .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+
+        /* Action Bar */
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .action-bar .info { color: var(--gray); font-size: 0.9rem; }
+        .action-bar .info strong { color: var(--primary); }
+        .action-buttons { display: flex; gap: 0.5rem; }
+
+        /* Table */
+        .table-container {
+            background: var(--white);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: var(--primary);
+            color: white;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        th:hover { background: var(--secondary); }
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            vertical-align: middle;
+        }
+        tr:hover { background: #f8fafc; }
+        tr:last-child td { border-bottom: none; }
+
+        /* Checkbox */
+        .checkbox-cell { width: 40px; text-align: center; }
+        .checkbox-cell input { width: 18px; height: 18px; cursor: pointer; }
+
+        /* Status */
+        .status-select {
+            padding: 0.35rem 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: white;
+            cursor: pointer;
+        }
+        .status-select.approved { border-color: var(--success); background: #f0fff4; }
+        .status-select.rejected { border-color: var(--gray); background: #f7fafc; }
+
+        /* Notes */
+        .notes-input {
+            width: 150px;
+            padding: 0.35rem 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .notes-input:focus { outline: none; border-color: var(--accent); }
+
+        /* Badges */
+        .badge-type {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            background: var(--border);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-confidence {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-high { background: #c6f6d5; color: #276749; }
+        .badge-medium { background: #feebc8; color: #c05621; }
+        .badge-low { background: #fed7d7; color: #c53030; }
+
+        /* Score */
+        .score { font-weight: 700; }
+        .score-high { color: var(--success); }
+        .score-medium { color: var(--warning); }
+        .score-low { color: var(--danger); }
+
+        /* Links */
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .title-cell { max-width: 250px; }
+        .title-cell a {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray);
+        }
+        .empty-state h3 { margin-bottom: 0.5rem; color: #4a5568; }
+
+        /* File input hidden */
+        .file-input { display: none; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .cards-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .filters-bar { flex-direction: column; align-items: stretch; }
+            .filter-group select, .filter-group input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>OeNB IWG Review Dashboard</h1>
+        <p>Prüfung der Downloads nach Informationsweiterverwendungsgesetz (IWG) Kriterien</p>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab active" data-tab="overview">Übersicht</button>
+        <button class="tab" data-tab="review">Prüfung <span class="badge" id="pending-badge">0</span></button>
+        <button class="tab" data-tab="approved">Freigegeben <span class="badge" id="approved-badge">0</span></button>
+        <button class="tab" data-tab="rejected">Nicht IWG Relevant <span class="badge" id="rejected-badge">0</span></button>
+    </nav>
+
+    <!-- Tab 1: Overview -->
+    <div id="tab-overview" class="tab-content active">
+        <div class="container">
+            <!-- Summary Cards -->
+            <div class="cards-grid">
+                <div class="card">
+                    <h3>Gesamt</h3>
+                    <div class="value">{{ total_count }}</div>
+                </div>
+                <div class="card success">
+                    <h3>Hohe Relevanz</h3>
+                    <div class="value">{{ high_count }}</div>
+                </div>
+                <div class="card warning">
+                    <h3>Mittlere Relevanz</h3>
+                    <div class="value">{{ medium_count }}</div>
+                </div>
+                <div class="card danger">
+                    <h3>Niedrige Relevanz</h3>
+                    <div class="value">{{ low_count }}</div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-card">
+                <h3>Prüfungsfortschritt</h3>
+                <div class="progress-bar">
+                    <div class="progress-segment progress-approved" id="progress-approved" style="width: 0%"></div>
+                    <div class="progress-segment progress-rejected" id="progress-rejected" style="width: 0%"></div>
+                </div>
+                <div class="progress-labels">
+                    <span><span id="progress-approved-count">0</span> Freigegeben</span>
+                    <span><span id="progress-rejected-count">0</span> Nicht IWG Relevant</span>
+                    <span><span id="progress-pending-count">{{ total_count }}</span> Ausstehend</span>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <!-- Donut Chart: Confidence -->
+                <div class="chart-card">
+                    <h3>Relevanz-Verteilung</h3>
+                    <div class="donut-container">
+                        <div class="donut" id="donut-chart">
+                            <div class="donut-hole">{{ total_count }}</div>
+                        </div>
+                        <div class="donut-legend">
+                            <div class="legend-item">
+                                <span class="legend-dot high"></span>
+                                <span>Hoch: {{ high_count }}</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-dot medium"></span>
+                                <span>Mittel: {{ medium_count }}</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-dot low"></span>
+                                <span>Niedrig: {{ low_count }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bar Chart: File Types -->
+                <div class="chart-card">
+                    <h3>Dateitypen</h3>
+                    <div class="bar-chart" id="filetype-chart">
+                        {% for ft, count in file_type_stats.items() %}
+                        <div class="bar-row">
+                            <span class="bar-label">{{ ft|upper }}</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width: {{ (count / total_count * 100)|round|int }}%"></div>
+                            </div>
+                            <span class="bar-value">{{ count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Bar Chart: Sections -->
+                <div class="chart-card">
+                    <h3>Top Bereiche</h3>
+                    <div class="bar-chart" id="section-chart">
+                        {% for section, count in section_stats.items() %}
+                        <div class="bar-row">
+                            <span class="bar-label" title="{{ section }}">{{ section|truncate(12) }}</span>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width: {{ (count / total_count * 100)|round|int }}%"></div>
+                            </div>
+                            <span class="bar-value">{{ count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Review -->
+    <div id="tab-review" class="tab-content">
+        <div class="container">
+            <!-- Filters -->
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <label>Konfidenz</label>
+                    <select id="filter-confidence">
+                        <option value="">Alle</option>
+                        <option value="high">Hoch</option>
+                        <option value="medium">Mittel</option>
+                        <option value="low">Niedrig</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Dateityp</label>
+                    <select id="filter-filetype">
+                        <option value="">Alle</option>
+                        {% for ft in file_types %}
+                        <option value="{{ ft }}">{{ ft|upper }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Bereich</label>
+                    <select id="filter-section">
+                        <option value="">Alle</option>
+                        {% for section in sections %}
+                        <option value="{{ section }}">{{ section|truncate(30) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Suche</label>
+                    <input type="text" id="filter-search" placeholder="Titel oder URL...">
+                </div>
+                <button class="btn btn-secondary" onclick="resetFilters()">Zurücksetzen</button>
+            </div>
+
+            <!-- Action Bar -->
+            <div class="action-bar">
+                <div class="info">
+                    <strong id="review-visible-count">0</strong> Einträge angezeigt
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-success btn-sm" onclick="bulkApprove()">Ausgewählte freigeben</button>
+                    <button class="btn btn-secondary btn-sm" onclick="bulkReject()">Ausgewählte: Nicht IWG</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell"><input type="checkbox" id="select-all-review" onchange="toggleSelectAll('review')"></th>
+                                <th>Titel</th>
+                                <th>Typ</th>
+                                <th>Bereich</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Notiz</th>
+                            </tr>
+                        </thead>
+                        <tbody id="review-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="review-empty" style="display: none;">
+                    <h3>Keine ausstehenden Einträge</h3>
+                    <p>Alle Einträge wurden geprüft.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Approved -->
+    <div id="tab-approved" class="tab-content">
+        <div class="container">
+            <!-- Action Bar -->
+            <div class="action-bar">
+                <div class="info">
+                    <strong id="approved-count">0</strong> freigegebene Einträge
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="exportCSV()">CSV für data.gv.at exportieren</button>
+                    <button class="btn btn-secondary" onclick="exportState()">Fortschritt speichern</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Fortschritt laden</button>
+                    <input type="file" id="import-file" class="file-input" accept=".json" onchange="importState(this)">
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Titel</th>
+                                <th>Typ</th>
+                                <th>Bereich</th>
+                                <th>Score</th>
+                                <th>Notiz</th>
+                                <th>Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approved-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="approved-empty" style="display: none;">
+                    <h3>Noch keine Einträge freigegeben</h3>
+                    <p>Gehen Sie zur "Prüfung" um Einträge freizugeben.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 4: Rejected -->
+    <div id="tab-rejected" class="tab-content">
+        <div class="container">
+            <!-- Action Bar -->
+            <div class="action-bar">
+                <div class="info">
+                    <strong id="rejected-count">0</strong> als "Nicht IWG Relevant" markierte Einträge
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Titel</th>
+                                <th>Typ</th>
+                                <th>Bereich</th>
+                                <th>Score</th>
+                                <th>Notiz</th>
+                                <th>Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rejected-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="rejected-empty" style="display: none;">
+                    <h3>Keine Einträge als "Nicht IWG Relevant" markiert</h3>
+                    <p>Einträge, die Sie als nicht relevant markieren, erscheinen hier.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // All items data
+        const allItems = {{ items_json|safe }};
+
+        // State management
+        const STORAGE_KEY = 'oenb-iwg-review-state';
+        let itemStates = {}; // { url: { status: 'pending'|'approved'|'rejected', note: '' } }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            initTabs();
+            initFilters();
+            renderDonutChart();
+            updateAllViews();
+        });
+
+        // Load state from localStorage
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    itemStates = parsed.itemStates || {};
+                }
+            } catch (e) {
+                console.error('Error loading state:', e);
+            }
+            // Initialize missing items
+            allItems.forEach(item => {
+                if (!itemStates[item.url]) {
+                    itemStates[item.url] = { status: 'pending', note: '' };
+                }
+            });
+        }
+
+        // Save state to localStorage
+        function saveState() {
+            try {
+                const state = {
+                    itemStates,
+                    lastUpdated: new Date().toISOString()
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                console.error('Error saving state:', e);
+            }
+        }
+
+        // Export state as JSON file
+        function exportState() {
+            const state = {
+                itemStates,
+                lastUpdated: new Date().toISOString(),
+                totalItems: allItems.length
+            };
+            const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'oenb-review-state.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Import state from JSON file
+        function importState(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.itemStates) {
+                        itemStates = { ...itemStates, ...imported.itemStates };
+                        saveState();
+                        updateAllViews();
+                        alert('Fortschritt erfolgreich geladen!');
+                    }
+                } catch (err) {
+                    alert('Fehler beim Laden der Datei: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            input.value = '';
+        }
+
+        // Tab switching
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+                });
+            });
+        }
+
+        // Filter initialization
+        function initFilters() {
+            ['filter-confidence', 'filter-filetype', 'filter-section'].forEach(id => {
+                document.getElementById(id).addEventListener('change', () => renderReviewTable());
+            });
+            document.getElementById('filter-search').addEventListener('input', () => renderReviewTable());
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-confidence').value = '';
+            document.getElementById('filter-filetype').value = '';
+            document.getElementById('filter-section').value = '';
+            document.getElementById('filter-search').value = '';
+            renderReviewTable();
+        }
+
+        // Render donut chart with CSS conic-gradient
+        function renderDonutChart() {
+            const total = {{ total_count }};
+            const high = {{ high_count }};
+            const medium = {{ medium_count }};
+            const low = {{ low_count }};
+
+            const highPct = (high / total * 100);
+            const mediumPct = (medium / total * 100);
+            const lowPct = (low / total * 100);
+
+            const donut = document.getElementById('donut-chart');
+            donut.style.background = `conic-gradient(
+                var(--success) 0% ${highPct}%,
+                var(--warning) ${highPct}% ${highPct + mediumPct}%,
+                var(--danger) ${highPct + mediumPct}% 100%
+            )`;
+        }
+
+        // Update all views
+        function updateAllViews() {
+            updateCounts();
+            updateProgress();
+            renderReviewTable();
+            renderApprovedTable();
+            renderRejectedTable();
+        }
+
+        // Update badge counts
+        function updateCounts() {
+            let pending = 0, approved = 0, rejected = 0;
+            allItems.forEach(item => {
+                const state = itemStates[item.url];
+                if (state.status === 'approved') approved++;
+                else if (state.status === 'rejected') rejected++;
+                else pending++;
+            });
+
+            document.getElementById('pending-badge').textContent = pending;
+            document.getElementById('approved-badge').textContent = approved;
+            document.getElementById('rejected-badge').textContent = rejected;
+            document.getElementById('approved-count').textContent = approved;
+            document.getElementById('rejected-count').textContent = rejected;
+        }
+
+        // Update progress bar
+        function updateProgress() {
+            const total = allItems.length;
+            let approved = 0, rejected = 0;
+            allItems.forEach(item => {
+                const state = itemStates[item.url];
+                if (state.status === 'approved') approved++;
+                else if (state.status === 'rejected') rejected++;
+            });
+            const pending = total - approved - rejected;
+
+            document.getElementById('progress-approved').style.width = (approved / total * 100) + '%';
+            document.getElementById('progress-rejected').style.width = (rejected / total * 100) + '%';
+            document.getElementById('progress-approved-count').textContent = approved;
+            document.getElementById('progress-rejected-count').textContent = rejected;
+            document.getElementById('progress-pending-count').textContent = pending;
+        }
+
+        // Get filtered items for review (pending only)
+        function getFilteredPendingItems() {
+            const confidence = document.getElementById('filter-confidence').value;
+            const filetype = document.getElementById('filter-filetype').value;
+            const section = document.getElementById('filter-section').value;
+            const search = document.getElementById('filter-search').value.toLowerCase();
+
+            return allItems.filter(item => {
+                const state = itemStates[item.url];
+                if (state.status !== 'pending') return false;
+                if (confidence && item.iwg_confidence !== confidence) return false;
+                if (filetype && item.file_type !== filetype) return false;
+                if (section && item.page_section !== section) return false;
+                if (search) {
+                    const title = (item.title || '').toLowerCase();
+                    const url = item.url.toLowerCase();
+                    if (!title.includes(search) && !url.includes(search)) return false;
+                }
+                return true;
+            });
+        }
+
+        // Render review table
+        function renderReviewTable() {
+            const items = getFilteredPendingItems();
+            const tbody = document.getElementById('review-table-body');
+            const empty = document.getElementById('review-empty');
+
+            document.getElementById('review-visible-count').textContent = items.length;
+
+            if (items.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = items.map(item => {
+                const state = itemStates[item.url];
+                return `
+                    <tr data-url="${escapeHtml(item.url)}">
+                        <td class="checkbox-cell"><input type="checkbox" class="item-checkbox"></td>
+                        <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank" title="${escapeHtml(item.title || item.url)}">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
+                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span> <span class="badge-confidence badge-${item.iwg_confidence}">${item.iwg_confidence}</span></td>
+                        <td>
+                            <select class="status-select" onchange="updateStatus('${escapeHtml(item.url)}', this.value)">
+                                <option value="pending" selected>Ausstehend</option>
+                                <option value="approved">Freigegeben</option>
+                                <option value="rejected">Nicht IWG</option>
+                            </select>
+                        </td>
+                        <td><input type="text" class="notes-input" value="${escapeHtml(state.note)}" onchange="updateNote('${escapeHtml(item.url)}', this.value)" placeholder="Notiz..."></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Render approved table
+        function renderApprovedTable() {
+            const items = allItems.filter(item => itemStates[item.url].status === 'approved');
+            const tbody = document.getElementById('approved-table-body');
+            const empty = document.getElementById('approved-empty');
+
+            if (items.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = items.map(item => {
+                const state = itemStates[item.url];
+                return `
+                    <tr>
+                        <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
+                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
+                        <td>${escapeHtml(state.note) || '-'}</td>
+                        <td><button class="btn btn-secondary btn-sm" onclick="updateStatus('${escapeHtml(item.url)}', 'pending')">Zurück</button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Render rejected table
+        function renderRejectedTable() {
+            const items = allItems.filter(item => itemStates[item.url].status === 'rejected');
+            const tbody = document.getElementById('rejected-table-body');
+            const empty = document.getElementById('rejected-empty');
+
+            if (items.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = items.map(item => {
+                const state = itemStates[item.url];
+                return `
+                    <tr>
+                        <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
+                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
+                        <td>${escapeHtml(state.note) || '-'}</td>
+                        <td><button class="btn btn-secondary btn-sm" onclick="updateStatus('${escapeHtml(item.url)}', 'pending')">Zurück</button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update item status
+        function updateStatus(url, status) {
+            itemStates[url].status = status;
+            saveState();
+            updateAllViews();
+        }
+
+        // Update item note
+        function updateNote(url, note) {
+            itemStates[url].note = note;
+            saveState();
+        }
+
+        // Toggle select all
+        function toggleSelectAll(tableType) {
+            const checked = document.getElementById('select-all-' + tableType).checked;
+            document.querySelectorAll('#' + tableType + '-table-body .item-checkbox').forEach(cb => {
+                cb.checked = checked;
+            });
+        }
+
+        // Bulk approve selected
+        function bulkApprove() {
+            document.querySelectorAll('#review-table-body tr').forEach(row => {
+                const cb = row.querySelector('.item-checkbox');
+                if (cb && cb.checked) {
+                    const url = row.dataset.url;
+                    itemStates[url].status = 'approved';
+                }
+            });
+            saveState();
+            updateAllViews();
+            document.getElementById('select-all-review').checked = false;
+        }
+
+        // Bulk reject selected
+        function bulkReject() {
+            document.querySelectorAll('#review-table-body tr').forEach(row => {
+                const cb = row.querySelector('.item-checkbox');
+                if (cb && cb.checked) {
+                    const url = row.dataset.url;
+                    itemStates[url].status = 'rejected';
+                }
+            });
+            saveState();
+            updateAllViews();
+            document.getElementById('select-all-review').checked = false;
+        }
+
+        // Export CSV
+        function exportCSV() {
+            const approved = allItems.filter(item => itemStates[item.url].status === 'approved');
+            if (approved.length === 0) {
+                alert('Keine freigegebenen Einträge zum Exportieren.');
+                return;
+            }
+
+            const headers = ['URL', 'Titel', 'Dateityp', 'Bereich', 'Größe (Bytes)', 'Sprache', 'IWG Score', 'Konfidenz', 'Fundort', 'Notiz'];
+            const rows = approved.map(item => {
+                const state = itemStates[item.url];
+                return [
+                    item.url || '',
+                    (item.title || '').replace(/;/g, ','),
+                    item.file_type || '',
+                    item.page_section || '',
+                    item.file_size_bytes || '',
+                    item.language || 'de',
+                    item.iwg_score || '',
+                    item.iwg_confidence || '',
+                    item.found_on_page || '',
+                    (state.note || '').replace(/;/g, ',')
+                ];
+            });
+
+            let csv = '\uFEFF'; // BOM for Excel
+            csv += headers.join(';') + '\n';
+            csv += rows.map(row => row.join(';')).join('\n');
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'oenb-data-gv-at-export.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Escape HTML
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
