@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+ <meta charset="UTF-8">
+ <title>Cookie Banner</title>
+ <script>
+  
+  function handleMessage (event)
+  {
+   try
+   {
+    if (localStorage)
+    {
+     var msg = typeof event.data === 'string' ? event.data : '';
+     if (msg.substring(0, 10) == 'cmpcd:req:')
+     {
+      var key = msg.substring(10, 9999);
+      var itm = localStorage.getItem(key);
+      if (itm !== null && typeof (itm) === 'string')
+      {
+       event.source.postMessage('cmpcd:resp:' + key + '=' + itm, '*');
+      }
+     }
+     else if (msg.substring(0, 10) == 'cmpcd:set:')
+     {
+      var key = msg.substring(10, 9999);
+      var p   = key.indexOf('=');
+      if (p > 0)
+      {
+       var val = key.substring(p + 1, 99999);
+       key     = key.substring(0, p);
+       localStorage.setItem(key, val);
+       event.source.postMessage('cmpcd:resp:' + key + '=' + val, '*');
+      }
+      else
+      {
+       event.source.postMessage('cmpcd:setno:' + key, '*');
+      }
+     }
+     else if (msg.substring(0, 10) == 'cmpcd:rem:')
+     {
+      var key = msg.substring(10, 9999);
+      var p   = key.indexOf('=');
+      if (p > 0)
+      {
+       var val = key.substring(p, 99999);
+       key     = key.substring(0, p);
+       localStorage.setItem(key, val);
+       event.source.postMessage('cmpcd:resp:' + key + '=', '*');
+      }
+      else
+      {
+       event.source.postMessage('cmpcd:remno:' + key, '*');
+      }
+     }
+    }
+   }
+   catch(e){}
+  }
+  
+  if (window.addEventListener)
+  {
+   window.addEventListener('message', handleMessage, false);
+  }
+  else if (window.attachEvent)
+  {
+   window.attachEvent('onmessage', handleMessage);
+  }
+  
+  try
+  {
+   if (localStorage && localStorage.length)
+   {
+    for (var i = 0; i < localStorage.length; i++)
+    {
+     var key = localStorage.key(i);
+     var val = localStorage.getItem(key);
+     parent.postMessage('cmpcd:resp:' + key + '=' + val, '*');
+    }
+   }
+  }
+  catch(e){}
+  parent.postMessage('cmpcd:load:done', '*');
+ 
+ </script>
+</head>
+<body><a href="https://www.consentmanager.net/en/cookie-banner/">Cookie Banner powered by consentmanager.net</a>
+
+</body></html>
