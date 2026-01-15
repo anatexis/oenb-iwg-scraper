@@ -856,7 +856,7 @@
             <h2>IWG-Bestandsliste exportieren</h2>
 
             <div class="filter-group">
-                <h3>Typ</h3>
+                <h3>Typ <a href="#" onclick="toggleAllFilters('type-filters', true); return false;">Alle</a> | <a href="#" onclick="toggleAllFilters('type-filters', false); return false;">Keine</a></h3>
                 <div id="type-filters">
                     <label class="checkbox-label">
                         <input type="checkbox" name="type-filter" value="download" checked>
@@ -882,7 +882,7 @@
             </div>
 
             <div class="filter-group">
-                <h3>Format</h3>
+                <h3>Format <a href="#" onclick="toggleAllFilters('format-filters', true); return false;">Alle</a> | <a href="#" onclick="toggleAllFilters('format-filters', false); return false;">Keine</a></h3>
                 <div id="format-filters">
                     <label class="checkbox-label">
                         <input type="checkbox" name="format-filter" value="pdf" checked>
@@ -928,7 +928,7 @@
             </div>
 
             <div class="filter-group">
-                <h3>Bereich</h3>
+                <h3>Bereich <a href="#" onclick="toggleAllFilters('section-filters', true); return false;">Alle</a> | <a href="#" onclick="toggleAllFilters('section-filters', false); return false;">Keine</a></h3>
                 <div id="section-filters">
                     <!-- dynamically populated -->
                 </div>
@@ -1348,6 +1348,36 @@
         function escapeHtml(str) {
             if (!str) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // IWG Export Modal Functions
+        function openIwgModal() {
+            populateSectionFilters();
+            document.getElementById('iwg-export-modal').style.display = 'flex';
+        }
+
+        function closeIwgModal() {
+            document.getElementById('iwg-export-modal').style.display = 'none';
+        }
+
+        function populateSectionFilters() {
+            const container = document.getElementById('section-filters');
+            // Get unique sections from allItems (the global items array)
+            const sections = [...new Set(allItems.map(item => item.page_section).filter(Boolean))].sort();
+
+            container.innerHTML = sections.map(section => `
+                <label class="checkbox-label">
+                    <input type="checkbox" name="section-filter" value="${escapeHtml(section)}" checked>
+                    <span>${escapeHtml(section)}</span>
+                </label>
+            `).join('');
+        }
+
+        function toggleAllFilters(groupId, checked) {
+            const container = document.getElementById(groupId);
+            container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = checked;
+            });
         }
     </script>
 </body>
