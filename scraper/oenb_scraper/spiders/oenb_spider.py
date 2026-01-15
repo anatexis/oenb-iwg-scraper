@@ -41,6 +41,14 @@ class OenbSpider(scrapy.Spider):
         "/data/",
     ]
 
+    # URL patterns for interactive data portals
+    INTERACTIVE_DATA_PATTERNS = [
+        "/isawebstat/",
+        "/dynabfrage/",
+        "/isaweb/",
+        "/statistik/interaktiv",
+    ]
+
     def parse(self, response):
         """Parse a page for downloads and follow links."""
         # Skip non-text responses (images, etc.)
@@ -88,6 +96,21 @@ class OenbSpider(scrapy.Spider):
                     },
                     dont_filter=True,  # Allow fetching external domains
                 )
+
+            # Check if it's an interactive data portal
+            elif self._is_interactive_data(full_url):
+                yield self._create_interactive_data_item(
+                    url=full_url,
+                    title=link_text,
+                    found_on_page=page_url,
+                    page_section=page_section,
+                    section_heading=self._find_section_heading(link, response),
+                    page_date=page_date,
+                    language=page_language,
+                )
+                # Also follow the link to crawl the data portal
+                if self._is_internal_link(full_url):
+                    yield response.follow(full_url, callback=self.parse)
 
             # Follow internal links
             elif self._is_internal_link(full_url):
@@ -230,6 +253,15 @@ class OenbSpider(scrapy.Spider):
         """
         url_lower = url.lower()
         return any(pattern in url_lower for pattern in self.API_PATTERNS)
+
+    def _is_interactive_data(self, url: str) -> bool:
+        """Check if URL is an interactive data portal.
+
+        Detects URLs like /isawebstat/, /dynabfrage/ which are
+        interactive statistics/data query interfaces.
+        """
+        url_lower = url.lower()
+        return any(pattern in url_lower for pattern in self.INTERACTIVE_DATA_PATTERNS)
 
     def _is_internal_link(self, url: str) -> bool:
         """Check if URL is internal to oenb.at and uses http(s)."""
@@ -450,6 +482,26 @@ class OenbSpider(scrapy.Spider):
         item["has_tables"] = True
         item["has_html_tables"] = True
         item["table_count"] = kwargs["table_count"]
+        item["language"] = kwargs["language"]
+        item["found_in_languages"] = None
+        item["sources"] = []
+        return item
+
+    def _create_interactive_data_item(self, **kwargs) -> DownloadItem:
+        """Create a DownloadItem for an interactive data portal."""
+        item = DownloadItem()
+        item["url"] = kwargs["url"]
+        item["type"] = "interactive_data"
+        item["file_type"] = "portal"
+        item["file_size_bytes"] = None
+        item["title"] = kwargs["title"]
+        item["found_on_page"] = kwargs["found_on_page"]
+        item["page_section"] = kwargs["page_section"]
+        item["section_heading"] = kwargs["section_heading"]
+        item["page_date"] = kwargs["page_date"]
+        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
+        item["machine_readable"] = True  # Interactive portals have queryable data
+        item["has_tables"] = None
         item["language"] = kwargs["language"]
         item["found_in_languages"] = None
         item["sources"] = []

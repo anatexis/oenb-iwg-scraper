@@ -576,3 +576,25 @@ class TestApiDetection:
 
     def test_rejects_normal_page(self):
         assert not self.spider._is_potential_api("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html")
+
+
+class TestInteractiveDataDetection:
+    """Test interactive data portal URL detection."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_detects_isawebstat(self):
+        assert self.spider._is_interactive_data("https://www.oenb.at/isawebstat/dynabfrage/showResult?hierarchieId=11")
+
+    def test_detects_dynabfrage(self):
+        assert self.spider._is_interactive_data("https://www.oenb.at/dynabfrage/query")
+
+    def test_detects_isaweb(self):
+        assert self.spider._is_interactive_data("https://www.oenb.at/isaweb/report")
+
+    def test_rejects_normal_page(self):
+        assert not self.spider._is_interactive_data("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html")
+
+    def test_rejects_download(self):
+        assert not self.spider._is_interactive_data("https://www.oenb.at/file.csv")
