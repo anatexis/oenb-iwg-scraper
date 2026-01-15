@@ -7,6 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from analysis.iwg_scorer import enrich_items_with_scores
+from analysis.sitemap_parser import parse_sitemap_html, get_default_sitemap_path
 
 
 def load_data(json_path: str) -> list[dict]:
@@ -92,6 +93,24 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
 
     template = env.get_template("claude_dashboard.html")
 
+    # Parse sitemap for visualization
+    sitemap_path = get_default_sitemap_path()
+    if sitemap_path.exists():
+        sitemap_data = parse_sitemap_html(str(sitemap_path))
+        # Add download counts per section
+        section_downloads = Counter(i["page_section"] for i in enriched if i.get("page_section"))
+        for section in sitemap_data:
+            section_key = section["name"].replace(" ", "-")
+            # Try various key formats
+            download_count = 0
+            for key in [section["name"], section_key, section["url"].split("/")[-1].replace(".html", "")]:
+                if key in section_downloads:
+                    download_count = section_downloads[key]
+                    break
+            section["download_count"] = download_count
+    else:
+        sitemap_data = []
+
     # Render
     html = template.render(
         items=enriched,
@@ -104,6 +123,7 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
         section_stats=section_stats,
         file_types=file_types,
         sections=sections,
+        sitemap_data=sitemap_data,
     )
 
     # Write output
@@ -119,27 +139,64 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
 
 def main():
     """Main entry point."""
+    import argparse
+    from datetime import datetime
+
+    parser = argparse.ArgumentParser(description="Generate Claude Dashboard for IWG review")
+    parser.add_argument(
+        "--input", "-i",
+        help="Input JSON file (default: latest in data/)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        help="Output HTML file (default: data/<timestamp>_claude_dashboard.html)"
+    )
+    parser.add_argument(
+        "--skip-scan",
+        action="store_true",
+        help="Skip Deep Scan (use if analyze.py already ran)"
+    )
+    args = parser.parse_args()
+
     project_root = Path(__file__).parent.parent
     data_dir = project_root / "data"
 
-    json_path = data_dir / "downloads.json"
-    output_path = data_dir / "claude_dashboard.html"
+    # Find input file
+    if args.input:
+        json_path = Path(args.input)
+    else:
+        # Find latest JSON file in data/
+        json_files = sorted(data_dir.glob("*_downloads.json"), reverse=True)
+        if json_files:
+            json_path = json_files[0]
+        else:
+            json_path = data_dir / "downloads.json"
 
     if not json_path.exists():
         print(f"Error: Data file not found: {json_path}")
         print("Run the scraper first to generate data.")
         return
 
+    # Determine output path
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+        output_path = data_dir / f"{timestamp}_claude_dashboard.html"
+
     # Load data
     print(f"Loading data from {json_path}...")
     items = load_data(str(json_path))
     print(f"Loaded {len(items)} items")
 
-    # Run Deep Scan (False Hope Detector)
-    from analysis.deep_scan import DeepScanner
-    print("\nRunning Deep Scan (validates top-scoring files)...")
-    scanner = DeepScanner(limit_percent=0.1, min_items=5)
-    items = scanner.scan_items(items)
+    # Run Deep Scan (False Hope Detector) unless skipped
+    if not args.skip_scan:
+        from analysis.deep_scan import DeepScanner
+        print("\nRunning Deep Scan (validates top-scoring files)...")
+        scanner = DeepScanner(limit_percent=0.1, min_items=5)
+        items = scanner.scan_items(items)
+    else:
+        print("\nSkipping Deep Scan (--skip-scan flag set)")
 
     # Generate dashboard
     print("\nGenerating Claude Dashboard...")
