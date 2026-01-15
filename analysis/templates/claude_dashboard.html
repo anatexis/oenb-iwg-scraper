@@ -1379,6 +1379,120 @@
                 cb.checked = checked;
             });
         }
+
+        // IWG Export Functions
+        const typeLabels = {
+            'download': 'Download',
+            'interactive_data': 'Interaktives Datenportal',
+            'standardized_tables': 'Standardisierte Tabellen',
+            'shiny_app': 'Shiny App',
+            'webpage_with_data': 'Webseite mit Datentabellen'
+        };
+
+        function exportIwgList() {
+            // Get selected filters
+            const selectedTypes = getSelectedValues('type-filter');
+            const selectedFormats = getSelectedValues('format-filter');
+            const selectedSections = getSelectedValues('section-filter');
+
+            // Filter items
+            const filtered = allItems.filter(item =>
+                selectedTypes.includes(item.type) &&
+                selectedFormats.includes(item.file_type) &&
+                selectedSections.includes(item.page_section)
+            );
+
+            if (filtered.length === 0) {
+                alert('Keine Eintraege entsprechen den ausgewaehlten Filtern.');
+                return;
+            }
+
+            // Generate CSV
+            const csv = generateIwgCsv(filtered);
+
+            // Download
+            downloadCsv(csv, 'oenb-iwg-bestandsliste-' + formatDate(new Date()) + '.csv');
+
+            closeIwgModal();
+        }
+
+        function getSelectedValues(name) {
+            return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(cb => cb.value);
+        }
+
+        function generateIwgCsv(items) {
+            const headers = [
+                'Titel',
+                'URL',
+                'Format',
+                'Typ',
+                'Bereich',
+                'Sprache',
+                'Stand',
+                'Fundort',
+                'Groesse (KB)',
+                'Maschinenlesbar'
+            ];
+
+            const rows = items.map(item => {
+                const sizeKb = item.file_size_bytes ? Math.round(item.file_size_bytes / 1024) : '';
+                const machineReadable = item.machine_readable === true ? 'Ja' :
+                                        item.machine_readable === false ? 'Nein' : '';
+                const typeLabel = typeLabels[item.type] || item.type || '';
+
+                return [
+                    item.title || '',
+                    item.url || '',
+                    item.file_type || '',
+                    typeLabel,
+                    item.page_section || '',
+                    item.language || '',
+                    item.page_date || '',
+                    item.found_on_page || '',
+                    sizeKb,
+                    machineReadable
+                ].map(escapeCsvValue);
+            });
+
+            // Build CSV with semicolon delimiter
+            let csv = headers.map(escapeCsvValue).join(';') + '\n';
+            csv += rows.map(row => row.join(';')).join('\n');
+
+            return csv;
+        }
+
+        function escapeCsvValue(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            const str = String(value);
+            // If value contains semicolon, quote, or newline, wrap in quotes and escape quotes
+            if (str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+
+        function downloadCsv(content, filename) {
+            // Add UTF-8 BOM for Excel compatibility
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + content], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
     </script>
 </body>
 </html>
