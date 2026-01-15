@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, parse_qs
 
 import scrapy
 
@@ -18,7 +18,11 @@ class OenbSpider(scrapy.Spider):
     # File extensions to capture as downloads
     DOWNLOAD_EXTENSIONS = {
         ".pdf", ".xlsx", ".xls", ".csv", ".xml", ".zip",
-        ".doc", ".docx", ".ppt", ".pptx", ".json"
+        ".doc", ".docx", ".ppt", ".pptx", ".json",
+        # IWG additions
+        ".txt", ".odt", ".rtf", ".epub",      # Text/Docs
+        ".geojson", ".kml", ".gml",            # Geo
+        ".rdf", ".ttl", ".ods"                 # Structured data
     }
 
     # Patterns for Shiny apps
@@ -56,18 +60,24 @@ class OenbSpider(scrapy.Spider):
                     section_heading=self._find_section_heading(link, response),
                     page_date=page_date,
                     language=page_language,
+                    sources=self._extract_sources(link, response),
                 )
 
-            # Check if it's a Shiny app
+            # Check if it's a Shiny app - fetch the page to extract sources
             elif self._is_shiny_app(full_url):
-                yield self._create_shiny_item(
-                    url=full_url,
-                    title=link_text,
-                    found_on_page=page_url,
-                    page_section=page_section,
-                    section_heading=self._find_section_heading(link, response),
-                    page_date=page_date,
-                    language=page_language,
+                yield scrapy.Request(
+                    full_url,
+                    callback=self.parse_shiny_app,
+                    meta={
+                        "shiny_url": full_url,
+                        "title": link_text,
+                        "found_on_page": page_url,
+                        "page_section": page_section,
+                        "section_heading": self._find_section_heading(link, response),
+                        "page_date": page_date,
+                        "language": page_language,
+                    },
+                    dont_filter=True,  # Allow fetching external domains
                 )
 
             # Follow internal links
@@ -78,21 +88,92 @@ class OenbSpider(scrapy.Spider):
         for iframe in response.css("iframe[src]"):
             src = iframe.attrib.get("src", "")
             if self._is_shiny_app(src):
-                yield self._create_shiny_item(
-                    url=src,
-                    title="Embedded Shiny App",
-                    found_on_page=page_url,
-                    page_section=page_section,
-                    section_heading="",
-                    page_date=page_date,
-                    language=page_language,
+                yield scrapy.Request(
+                    src,
+                    callback=self.parse_shiny_app,
+                    meta={
+                        "shiny_url": src,
+                        "title": "Embedded Shiny App",
+                        "found_on_page": page_url,
+                        "page_section": page_section,
+                        "section_heading": "",
+                        "page_date": page_date,
+                        "language": page_language,
+                    },
+                    dont_filter=True,
                 )
 
+    def parse_shiny_app(self, response):
+        """Parse a Shiny app page to extract sources."""
+        meta = response.meta
+
+        # Extract sources from the Shiny app page
+        sources = self._extract_sources_from_shiny(response)
+
+        yield self._create_shiny_item(
+            url=meta["shiny_url"],
+            title=meta["title"],
+            found_on_page=meta["found_on_page"],
+            page_section=meta["page_section"],
+            section_heading=meta["section_heading"],
+            page_date=meta["page_date"],
+            language=meta["language"],
+            sources=sources,
+        )
+
+    def _extract_sources_from_shiny(self, response) -> list[str]:
+        """Extract sources from Shiny app HTML.
+
+        Looks for footer links with explicit source prefixes.
+        """
+        sources = []
+
+        # Look for footer links with source info
+        footer_links = response.css(".footer-link::text, .source-link::text, footer a::text").getall()
+        for text in footer_links:
+            text = text.strip()
+            # Extract source name from patterns like "Datenquelle: ECB Data Portal"
+            for prefix in ["Datenquelle:", "Quelle:", "Source:", "Geodaten:", "Data:"]:
+                if prefix in text:
+                    source = text.split(prefix, 1)[1].strip()
+                    if source and source not in sources:
+                        sources.append(source)
+                    break
+
+        # Also try the standard extraction on page text
+        if not sources:
+            sources = self._extract_sources(None, response)
+
+        return sources
+
+    # Query parameter patterns that indicate downloads
+    DOWNLOAD_QUERY_FORMATS = {"csv", "xlsx", "xls", "xml", "json", "pdf", "zip"}
+
     def _is_download(self, url: str) -> bool:
-        """Check if URL points to a downloadable file."""
+        """Check if URL points to a downloadable file.
+
+        Checks both:
+        - File extension in path (e.g., /file.csv)
+        - Format query parameter (e.g., ?format=CSV)
+        """
         parsed = urlparse(url.lower())
         path = parsed.path
-        return any(path.endswith(ext) for ext in self.DOWNLOAD_EXTENSIONS)
+
+        # Check file extension
+        if any(path.endswith(ext) for ext in self.DOWNLOAD_EXTENSIONS):
+            return True
+
+        # Check query parameters for format indicators
+        query_params = parse_qs(parsed.query)
+        format_param = query_params.get("format", [])
+        if format_param and format_param[0].lower() in self.DOWNLOAD_QUERY_FORMATS:
+            return True
+
+        # Check for download/export in path with format param
+        if any(kw in path for kw in ["download", "export"]) and format_param:
+            return True
+
+        return False
 
     def _is_shiny_app(self, url: str) -> bool:
         """Check if URL is a Shiny app."""
@@ -148,13 +229,116 @@ class OenbSpider(scrapy.Spider):
                 return headings[-1].strip()
         return ""
 
+    # Known data sources (German and English variants)
+    KNOWN_SOURCES = {
+        "OeNB", "Oesterreichische Nationalbank", "Oesterreichischen Nationalbank",
+        "Statistik Austria", "Statistics Austria",
+        "EZB", "ECB", "Europäische Zentralbank", "European Central Bank",
+        "Eurostat",
+        "IWF", "IMF", "Internationaler Währungsfonds", "International Monetary Fund",
+        "BIS", "Bank for International Settlements",
+        "Weltbank", "World Bank",
+        "OECD",
+        "FMA", "Finanzmarktaufsicht",
+        "BMF", "Bundesministerium für Finanzen",
+        "Wifo", "WIFO",
+        "IHS",
+        "WKO", "Wirtschaftskammer",
+        "AMS",
+        "Hauptverband",
+    }
+
+    def _extract_sources(self, link, response) -> list[str]:
+        """Extract source attribution near the link.
+
+        Looks for patterns like:
+        - "Quelle: OeNB, Statistik Austria"
+        - "Source: OeNB"
+        - "Quellen: OeNB; Eurostat"
+        """
+        sources = []
+
+        # Get surrounding text context
+        # Try parent elements up to 3 levels
+        context_text = ""
+        if link is not None:
+            parent = link
+            for _ in range(3):
+                parent = parent.xpath("..")
+                if parent:
+                    # Get all text in parent element
+                    texts = parent.css("::text").getall()
+                    context_text = " ".join(t.strip() for t in texts if t.strip())
+                    if context_text:
+                        break
+
+        # Also check the page for source patterns near figures/tables
+        page_text = response.text if hasattr(response, 'text') else ""
+
+        # Patterns to match source attributions (German and English)
+        # Capture until end of line, sentence, or HTML tag
+        source_patterns = [
+            r'[Qq]uelle[n]?\s*[:;]\s*([A-ZÄÖÜ][^<\n]{2,80})',
+            r'[Ss]ource[s]?\s*[:;]\s*([A-Z][^<\n]{2,80})',
+            r'[Dd]atenquelle[n]?\s*[:;]\s*([A-ZÄÖÜ][^<\n]{2,80})',
+        ]
+
+        # Search in context text first, then page text
+        for text in [context_text, page_text[:5000]]:
+            if not text:
+                continue
+            for pattern in source_patterns:
+                matches = re.findall(pattern, text)
+                for match in matches:
+                    # Split by common separators
+                    parts = re.split(r'[,;/&]|\bund\b|\band\b', match)
+                    for part in parts:
+                        part = part.strip()
+                        # Clean up: remove trailing punctuation and whitespace
+                        part = re.sub(r'[\.\)\]\s]+$', '', part).strip()
+
+                        # Skip if empty or too short/long
+                        if not part or len(part) < 3 or len(part) > 50:
+                            continue
+
+                        # Skip if starts with lowercase, number, or parenthesis
+                        if re.match(r'^[a-zäöü0-9\(\[]', part):
+                            continue
+
+                        # Skip common false positives
+                        if part.lower() in {'the', 'die', 'der', 'das', 'ein', 'eine'}:
+                            continue
+
+                        # Prefer known sources (exact or partial match)
+                        is_known = any(known.lower() in part.lower() for known in self.KNOWN_SOURCES)
+
+                        if is_known or re.match(r'^[A-ZÄÖÜ][a-zäöüA-ZÄÖÜ\s\-]+$', part):
+                            if part not in sources:
+                                sources.append(part)
+
+                    if sources:
+                        return sources  # Return first match found
+
+        return sources
+
     def _get_file_extension(self, url: str) -> str:
-        """Extract file extension from URL."""
+        """Extract file extension from URL or query parameter."""
         parsed = urlparse(url.lower())
         path = parsed.path
+
+        # Check file extension in path
         for ext in self.DOWNLOAD_EXTENSIONS:
             if path.endswith(ext):
                 return ext.lstrip(".")
+
+        # Check format query parameter
+        query_params = parse_qs(parsed.query)
+        format_param = query_params.get("format", [])
+        if format_param:
+            fmt = format_param[0].lower()
+            if fmt in self.DOWNLOAD_QUERY_FORMATS:
+                return fmt
+
         return "unknown"
 
     def _create_download_item(self, **kwargs) -> DownloadItem:
@@ -174,6 +358,7 @@ class OenbSpider(scrapy.Spider):
         item["has_tables"] = None
         item["language"] = kwargs["language"]
         item["found_in_languages"] = None  # Will be filled by pipeline
+        item["sources"] = kwargs.get("sources", [])
         return item
 
     def _create_shiny_item(self, **kwargs) -> DownloadItem:
@@ -193,4 +378,5 @@ class OenbSpider(scrapy.Spider):
         item["has_tables"] = None
         item["language"] = kwargs["language"]
         item["found_in_languages"] = None  # Will be filled by pipeline
+        item["sources"] = kwargs.get("sources", [])
         return item

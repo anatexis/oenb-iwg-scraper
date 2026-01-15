@@ -38,6 +38,37 @@ class TestDownloadDetection:
     def test_image_is_not_download(self):
         assert not self.spider._is_download("https://example.com/logo.png")
 
+    def test_detects_csv_query_format(self):
+        """Should detect downloads with ?format=CSV query parameter."""
+        assert self.spider._is_download("https://www.oenb.at/oearb/zinssatzwechselkurse/download-daily?format=CSV")
+
+    def test_detects_xlsx_query_format(self):
+        """Should detect downloads with ?format=xlsx query parameter."""
+        assert self.spider._is_download("https://example.com/export?format=xlsx")
+
+    def test_detects_download_path_with_format(self):
+        """Should detect download paths with format parameter."""
+        assert self.spider._is_download("https://example.com/download?format=json")
+
+    def test_rejects_invalid_format_param(self):
+        """Should not detect download for invalid format values."""
+        assert not self.spider._is_download("https://example.com/page?format=html")
+
+    def test_detects_txt_as_download(self):
+        assert self.spider._is_download("https://example.com/file.txt")
+
+    def test_detects_odt_as_download(self):
+        assert self.spider._is_download("https://example.com/doc.odt")
+
+    def test_detects_geojson_as_download(self):
+        assert self.spider._is_download("https://example.com/map.geojson")
+
+    def test_detects_rdf_as_download(self):
+        assert self.spider._is_download("https://example.com/data.rdf")
+
+    def test_detects_ttl_as_download(self):
+        assert self.spider._is_download("https://example.com/data.ttl")
+
 
 class TestShinyAppDetection:
     """Test Shiny app URL detection."""
@@ -50,6 +81,35 @@ class TestShinyAppDetection:
 
     def test_detects_shiny_subdomain(self):
         assert self.spider._is_shiny_app("https://shiny.oenb.at/app")
+
+
+class TestShinySourceExtraction:
+    """Test source extraction from Shiny app pages."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_extracts_datenquelle_from_footer(self):
+        """Should extract sources from footer links like 'Datenquelle: ECB Data Portal'."""
+        response = MockResponse("")
+        response.css = lambda q: MockSelector(["Datenquelle: ECB Data Portal", "Geodaten: Natural Earth"])
+        sources = self.spider._extract_sources_from_shiny(response)
+        assert "ECB Data Portal" in sources
+        assert "Natural Earth" in sources
+
+    def test_extracts_source_prefix(self):
+        """Should extract sources with Source: prefix."""
+        response = MockResponse("")
+        response.css = lambda q: MockSelector(["Source: World Bank Data"])
+        sources = self.spider._extract_sources_from_shiny(response)
+        assert "World Bank Data" in sources
+
+    def test_requires_prefix_for_sources(self):
+        """Should only extract sources with explicit prefixes, not random text."""
+        response = MockResponse("")
+        response.css = lambda q: MockSelector(["Home", "About", "OeNB", "Statistics"])
+        sources = self.spider._extract_sources_from_shiny(response)
+        assert sources == []  # No prefixes like "Datenquelle:" = no sources
 
     def test_detects_shiny_path(self):
         assert self.spider._is_shiny_app("https://example.com/shiny/app")
@@ -145,3 +205,293 @@ class TestFileExtensionExtraction:
 
     def test_handles_uppercase(self):
         assert self.spider._get_file_extension("https://example.com/FILE.PDF") == "pdf"
+
+    def test_extracts_csv_from_query_param(self):
+        """Should extract file type from ?format=CSV query parameter."""
+        assert self.spider._get_file_extension("https://www.oenb.at/oearb/download?format=CSV") == "csv"
+
+    def test_extracts_xlsx_from_query_param(self):
+        """Should extract file type from ?format=xlsx query parameter."""
+        assert self.spider._get_file_extension("https://example.com/export?format=xlsx") == "xlsx"
+
+
+class MockSelector:
+    """Mock Scrapy selector for testing."""
+
+    def __init__(self, texts=None):
+        self._texts = texts or []
+        self._parent = None
+
+    def xpath(self, query):
+        if self._parent:
+            return self._parent
+        return MockSelector()
+
+    def css(self, query):
+        return MockSelector(self._texts)
+
+    def getall(self):
+        return self._texts
+
+    def set_parent(self, parent):
+        self._parent = parent
+
+
+class MockResponse:
+    """Mock Scrapy response for testing."""
+
+    def __init__(self, text=""):
+        self.text = text
+
+
+class TestSourceExtraction:
+    """Test source extraction from page content."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_extracts_single_source_german(self):
+        response = MockResponse("Quelle: OeNB")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+
+    def test_extracts_multiple_sources_comma(self):
+        response = MockResponse("Quelle: OeNB, Statistik Austria, Eurostat")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+        assert "Statistik Austria" in sources
+        assert "Eurostat" in sources
+
+    def test_extracts_multiple_sources_semicolon(self):
+        response = MockResponse("Quelle: OeNB; EZB; IWF")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+        assert "EZB" in sources
+        assert "IWF" in sources
+
+    def test_extracts_sources_with_und(self):
+        response = MockResponse("Quelle: OeNB und Statistik Austria")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+        assert "Statistik Austria" in sources
+
+    def test_extracts_english_source(self):
+        response = MockResponse("Source: European Central Bank")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "European Central Bank" in sources
+
+    def test_extracts_datenquelle(self):
+        response = MockResponse("Datenquelle: Statistik Austria")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "Statistik Austria" in sources
+
+    def test_extracts_quellen_plural(self):
+        response = MockResponse("Quellen: OeNB, EZB")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+        assert "EZB" in sources
+
+    def test_returns_empty_list_when_no_source(self):
+        response = MockResponse("This is some text without source information.")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert sources == []
+
+    def test_cleans_trailing_punctuation(self):
+        response = MockResponse("Quelle: OeNB.")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "OeNB" in sources
+        assert "OeNB." not in sources
+
+    def test_ignores_very_short_sources(self):
+        response = MockResponse("Quelle: A, OeNB")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "A" not in sources  # Too short (< 3 chars)
+        assert "OeNB" in sources
+
+    def test_ignores_very_long_sources(self):
+        long_text = "A" * 60
+        response = MockResponse(f"Quelle: {long_text}, OeNB")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert long_text not in sources  # Too long (> 50 chars)
+        assert "OeNB" in sources
+
+    def test_handles_mixed_separators(self):
+        response = MockResponse("Quelle: OeNB, Statistik Austria und EZB; IWF")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert len(sources) >= 3  # At least OeNB, Statistik Austria, EZB
+
+    def test_rejects_lowercase_starting_text(self):
+        """Should not capture text starting with lowercase like 'the secured'."""
+        response = MockResponse("Source: (1) the secured, unsecured interbank money market")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "the secured" not in sources
+        assert "(1) the secured" not in sources
+        assert sources == []  # No valid sources in this text
+
+    def test_rejects_numbered_items(self):
+        """Should not capture items starting with numbers."""
+        response = MockResponse("Quelle: 1. Statistik, 2. Analyse")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        # Should reject these as they look like list items, not sources
+        assert "1" not in sources
+        assert "2" not in sources
+
+    def test_recognizes_known_sources(self):
+        """Should recognize common Austrian data sources."""
+        response = MockResponse("Quelle: Statistik Austria, Eurostat und WIFO")
+        link = MockSelector()
+        sources = self.spider._extract_sources(link, response)
+        assert "Statistik Austria" in sources
+        assert "Eurostat" in sources
+        assert "WIFO" in sources
+
+
+class MockRequest:
+    """Mock Scrapy request for testing."""
+
+    def __init__(self, url, meta=None):
+        self.url = url
+        self.meta = meta or {}
+
+
+class MockStats:
+    """Mock Scrapy stats collector."""
+
+    def __init__(self, stats=None):
+        self._stats = stats or {}
+
+    def get_stats(self):
+        return self._stats
+
+
+class MockCrawler:
+    """Mock Scrapy crawler."""
+
+    def __init__(self, stats=None):
+        self.stats = MockStats(stats)
+
+
+class MockSpiderForLogger:
+    """Mock spider for FailedUrlLogger tests."""
+
+    def __init__(self, stats=None):
+        self.crawler = MockCrawler(stats)
+
+    class logger:
+        @staticmethod
+        def info(msg):
+            pass
+
+
+class TestFailedUrlLogger:
+    """Test failed URL logging extension."""
+
+    def test_initializes_with_empty_list(self, tmp_path):
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+
+        assert logger.failed_urls == []
+        assert logger.output_path == output_path
+
+    def test_captures_failed_request(self, tmp_path):
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+        spider = MockSpiderForLogger()
+
+        request = MockRequest("https://example.com/broken", {"reason": "503 Error"})
+        logger.request_failed(request, spider)
+
+        assert len(logger.failed_urls) == 1
+        assert logger.failed_urls[0]["url"] == "https://example.com/broken"
+        assert "503 Error" in logger.failed_urls[0]["reason"]
+
+    def test_captures_multiple_failures(self, tmp_path):
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+        spider = MockSpiderForLogger()
+
+        urls = [
+            "https://example.com/error1",
+            "https://example.com/error2",
+            "https://example.com/error3",
+        ]
+
+        for url in urls:
+            logger.request_failed(MockRequest(url), spider)
+
+        assert len(logger.failed_urls) == 3
+
+    def test_writes_json_on_spider_close(self, tmp_path):
+        import json
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+
+        stats = {
+            "downloader/response_status_count/200": 100,
+            "downloader/response_status_count/404": 5,
+            "downloader/response_status_count/503": 10,
+        }
+        spider = MockSpiderForLogger(stats)
+
+        # Add some failed URLs
+        logger.request_failed(MockRequest("https://example.com/fail1"), spider)
+        logger.request_failed(MockRequest("https://example.com/fail2"), spider)
+
+        # Close spider
+        logger.spider_closed(spider, "finished")
+
+        # Check output file
+        assert output_path.exists()
+        data = json.loads(output_path.read_text())
+
+        assert data["summary"]["total_failed"] == 2
+        assert data["summary"]["http_errors"]["404"] == 5
+        assert data["summary"]["http_errors"]["503"] == 10
+        assert "200" not in data["summary"]["http_errors"]  # Success codes excluded
+        assert data["summary"]["spider_close_reason"] == "finished"
+        assert len(data["failed_urls"]) == 2
+
+    def test_excludes_success_status_codes(self, tmp_path):
+        import json
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+
+        stats = {
+            "downloader/response_status_count/200": 500,
+            "downloader/response_status_count/301": 50,
+            "downloader/response_status_count/404": 3,
+        }
+        spider = MockSpiderForLogger(stats)
+
+        logger.spider_closed(spider, "finished")
+
+        data = json.loads(output_path.read_text())
+
+        # Only 4xx and 5xx should be in http_errors
+        assert "200" not in data["summary"]["http_errors"]
+        assert "301" not in data["summary"]["http_errors"]
+        assert data["summary"]["http_errors"]["404"] == 3
