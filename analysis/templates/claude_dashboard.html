@@ -414,6 +414,14 @@
             .filters-bar { flex-direction: column; align-items: stretch; }
             .filter-group select, .filter-group input { width: 100%; }
         }
+
+        /* Sitemap visualization */
+        .sitemap-bar:hover div > div {
+            background: #4a7ab8 !important;
+        }
+        .sitemap-bar:hover {
+            background: #fafafa;
+        }
     </style>
 </head>
 <body>
@@ -427,6 +435,7 @@
         <button class="tab" data-tab="review">Prüfung <span class="badge" id="pending-badge">0</span></button>
         <button class="tab" data-tab="approved">Freigegeben <span class="badge" id="approved-badge">0</span></button>
         <button class="tab" data-tab="rejected">Nicht IWG Relevant <span class="badge" id="rejected-badge">0</span></button>
+        <button class="tab" data-tab="sitemap">Sitemap</button>
     </nav>
 
     <!-- Tab 1: Overview -->
@@ -679,6 +688,35 @@
                     <p>Einträge, die Sie als nicht relevant markieren, erscheinen hier.</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Tab 5: Sitemap -->
+    <div id="tab-sitemap" class="tab-content">
+        <div class="card">
+            <h2>OeNB Website-Struktur</h2>
+            <p class="text-muted">Klicken Sie auf einen Bereich, um die OeNB-Seite zu öffnen.</p>
+
+            <div class="sitemap-viz" style="margin-top: 2rem;">
+                {% for section in sitemap_data %}
+                <a href="{{ section.url }}" target="_blank" class="sitemap-bar" style="text-decoration: none; display: block; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span style="width: 120px; font-size: 0.85rem; color: #333;">{{ section.name }}</span>
+                        <div style="flex: 1; background: #f0f0f0; height: 24px; position: relative;">
+                            {% if sitemap_data|length > 0 %}
+                            <div style="background: #2c5282; height: 100%; width: {{ (section.subsections|length / sitemap_data[0].subsections|length * 100)|round if sitemap_data[0].subsections|length > 0 else 100 }}%;"></div>
+                            {% endif %}
+                        </div>
+                        <span style="width: 60px; text-align: right; font-size: 0.8rem; color: #666;">{{ section.subsections|length }}</span>
+                        <span style="width: 80px; text-align: right; font-size: 0.8rem; color: #2c5282; font-weight: 500;">{{ section.download_count|default(0) }} DL</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+
+            <p style="margin-top: 2rem; font-size: 0.75rem; color: #888;">
+                Balkenbreite = Anzahl Unterseiten im Bereich | DL = gefundene Downloads
+            </p>
         </div>
     </div>
 
