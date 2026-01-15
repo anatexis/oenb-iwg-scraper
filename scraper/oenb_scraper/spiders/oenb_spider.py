@@ -9,10 +9,11 @@ from oenb_scraper.items import DownloadItem
 
 class OenbSpider(scrapy.Spider):
     name = "oenb"
-    allowed_domains = ["oenb.at", "www.oenb.at"]
+    allowed_domains = ["oenb.at", "www.oenb.at", "finanzbildung.oenb.at"]
     start_urls = [
         "https://www.oenb.at/",
         "https://www.oenb.at/Service/Sitemap.html",
+        "https://finanzbildung.oenb.at/",
     ]
 
     # File extensions to capture as downloads
