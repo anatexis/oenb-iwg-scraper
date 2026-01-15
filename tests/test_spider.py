@@ -397,6 +397,14 @@ class MockRequest:
         self.meta = meta or {}
 
 
+class MockHttpResponse:
+    """Mock HTTP response for testing FailedUrlLogger."""
+
+    def __init__(self, url, status):
+        self.url = url
+        self.status = status
+
+
 class MockStats:
     """Mock Scrapy stats collector."""
 
@@ -495,12 +503,12 @@ class TestFailedUrlLogger:
         assert output_path.exists()
         data = json.loads(output_path.read_text())
 
-        assert data["summary"]["total_failed"] == 2
-        assert data["summary"]["http_errors"]["404"] == 5
-        assert data["summary"]["http_errors"]["503"] == 10
-        assert "200" not in data["summary"]["http_errors"]  # Success codes excluded
+        assert data["summary"]["total_dropped_requests"] == 2
+        assert data["summary"]["http_error_counts"]["404"] == 5
+        assert data["summary"]["http_error_counts"]["503"] == 10
+        assert "200" not in data["summary"]["http_error_counts"]  # Success codes excluded
         assert data["summary"]["spider_close_reason"] == "finished"
-        assert len(data["failed_urls"]) == 2
+        assert len(data["dropped_requests"]) == 2
 
     def test_excludes_success_status_codes(self, tmp_path):
         import json
@@ -520,10 +528,32 @@ class TestFailedUrlLogger:
 
         data = json.loads(output_path.read_text())
 
-        # Only 4xx and 5xx should be in http_errors
-        assert "200" not in data["summary"]["http_errors"]
-        assert "301" not in data["summary"]["http_errors"]
-        assert data["summary"]["http_errors"]["404"] == 3
+        # Only 4xx and 5xx should be in http_error_counts
+        assert "200" not in data["summary"]["http_error_counts"]
+        assert "301" not in data["summary"]["http_error_counts"]
+        assert data["summary"]["http_error_counts"]["404"] == 3
+
+    def test_captures_http_errors(self, tmp_path):
+        from oenb_scraper.pipelines import FailedUrlLogger
+
+        output_path = tmp_path / "failed.json"
+        logger = FailedUrlLogger(output_path)
+        spider = MockSpiderForLogger()
+
+        # Simulate 404 and 500 responses
+        request = MockRequest("https://example.com/page", {"referer": "https://example.com/"})
+        response_404 = MockHttpResponse("https://example.com/missing", 404)
+        response_500 = MockHttpResponse("https://example.com/error", 500)
+        response_200 = MockHttpResponse("https://example.com/ok", 200)
+
+        logger.response_received(response_404, request, spider)
+        logger.response_received(response_500, request, spider)
+        logger.response_received(response_200, request, spider)  # Should be ignored
+
+        assert len(logger.http_errors) == 2
+        assert logger.http_errors[0]["url"] == "https://example.com/missing"
+        assert logger.http_errors[0]["status"] == 404
+        assert logger.http_errors[1]["status"] == 500
 
 
 class TestApiDetection:

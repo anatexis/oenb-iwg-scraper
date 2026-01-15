@@ -1,11 +1,91 @@
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 import scrapy.exceptions
+from scrapy import signals
 import requests
 
 from oenb_scraper.pdf_analyzer import analyze_pdf
+
+
+class FailedUrlLogger:
+    """Extension to log failed URLs and HTTP errors to a separate file."""
+
+    def __init__(self, output_path):
+        self.output_path = Path(output_path)
+        self.failed_urls = []
+        self.http_errors = []
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        # Create timestamped filename
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+        output_path = Path(__file__).parent.parent.parent / "data" / f"{timestamp}_failed_urls.json"
+
+        ext = cls(output_path)
+
+        # Connect to signals
+        crawler.signals.connect(ext.spider_opened, signal=signals.spider_opened)
+        crawler.signals.connect(ext.spider_closed, signal=signals.spider_closed)
+        crawler.signals.connect(ext.request_failed, signal=signals.request_dropped)
+        crawler.signals.connect(ext.response_received, signal=signals.response_received)
+
+        return ext
+
+    def spider_opened(self, spider):
+        spider.logger.info(f"FailedUrlLogger: Will write to {self.output_path}")
+
+    def request_failed(self, request, spider):
+        """Called when a request fails or is dropped."""
+        self.failed_urls.append({
+            "url": request.url,
+            "reason": str(request.meta.get("reason", "unknown")),
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    def response_received(self, response, request, spider):
+        """Called for every response - capture HTTP errors (4xx, 5xx)."""
+        if response.status >= 400:
+            self.http_errors.append({
+                "url": response.url,
+                "status": response.status,
+                "found_on": request.meta.get("referer", "unknown"),
+                "timestamp": datetime.now().isoformat(),
+            })
+
+    def spider_closed(self, spider, reason):
+        """Save all failed URLs and HTTP errors when spider closes."""
+        # Collect stats about HTTP errors
+        stats = spider.crawler.stats.get_stats()
+
+        error_counts = {}
+        for key, value in stats.items():
+            if key.startswith("downloader/response_status_count/"):
+                status_code = key.split("/")[-1]
+                if status_code.startswith("4") or status_code.startswith("5"):
+                    error_counts[status_code] = value
+
+        error_summary = {
+            "total_dropped_requests": len(self.failed_urls),
+            "total_http_errors": len(self.http_errors),
+            "http_error_counts": error_counts,
+            "spider_close_reason": reason,
+        }
+
+        output = {
+            "summary": error_summary,
+            "dropped_requests": self.failed_urls,
+            "http_errors": self.http_errors,
+        }
+
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.output_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+        spider.logger.info(
+            f"FailedUrlLogger: Saved {len(self.failed_urls)} dropped requests "
+            f"and {len(self.http_errors)} HTTP errors to {self.output_path}"
+        )
 
 # Cache directory for PDF analysis results
 CACHE_DIR = Path(__file__).parent.parent.parent / "data" / ".pdf_cache"
