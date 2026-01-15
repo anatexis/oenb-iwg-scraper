@@ -360,6 +360,35 @@ class TestSourceExtraction:
         assert "WIFO" in sources
 
 
+class TestTableDetection:
+    """Test HTML table detection."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_detects_substantial_table(self):
+        """Table with 3+ rows should be detected."""
+        html = """
+        <table>
+            <tr><th>A</th><th>B</th></tr>
+            <tr><td>1</td><td>2</td></tr>
+            <tr><td>3</td><td>4</td></tr>
+            <tr><td>5</td><td>6</td></tr>
+        </table>
+        """
+        assert self.spider._count_data_tables(html) == 1
+
+    def test_ignores_small_table(self):
+        """Table with less than 3 rows should be ignored."""
+        html = "<table><tr><td>X</td></tr></table>"
+        assert self.spider._count_data_tables(html) == 0
+
+    def test_ignores_layout_table(self):
+        """Tables with layout classes should be ignored."""
+        html = '<table class="layout"><tr><td>X</td><td>Y</td></tr><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>'
+        assert self.spider._count_data_tables(html) == 0
+
+
 class MockRequest:
     """Mock Scrapy request for testing."""
 

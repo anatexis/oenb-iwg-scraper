@@ -146,6 +146,28 @@ class OenbSpider(scrapy.Spider):
 
         return sources
 
+    def _count_data_tables(self, html: str) -> int:
+        """Count substantial data tables in HTML.
+
+        A substantial table has at least 3 rows and is not a layout table.
+        """
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+
+        count = 0
+        for table in soup.find_all("table"):
+            # Skip layout tables
+            table_class = table.get("class", [])
+            if any(c in ["layout", "nav", "menu", "navigation"] for c in table_class):
+                continue
+
+            # Count rows
+            rows = table.find_all("tr")
+            if len(rows) >= 3:
+                count += 1
+
+        return count
+
     # Query parameter patterns that indicate downloads
     DOWNLOAD_QUERY_FORMATS = {"csv", "xlsx", "xls", "xml", "json", "pdf", "zip"}
 
