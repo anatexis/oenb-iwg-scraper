@@ -49,6 +49,40 @@ class TestShinyAppScoring:
         assert ("Shiny App (visualisierte Daten)", 30) in result["iwg_factors"]
 
 
+class TestStandardizedTablesScoring:
+    """Test scoring for standardized_tables (data catalog pages)."""
+
+    def test_standardized_tables_gets_35_bonus(self):
+        item = {"type": "standardized_tables", "file_type": "catalog"}
+        result = calculate_iwg_score(item)
+        # catalog (35) + standardized_tables type bonus (35) = 70
+        assert result["iwg_score"] == 70
+        assert ("Datenkatalog (strukturierte Daten)", 35) in result["iwg_factors"]
+
+    def test_catalog_file_type_scores_35_points(self):
+        item = {"file_type": "catalog"}
+        result = calculate_iwg_score(item)
+        assert result["iwg_score"] == 35
+        assert ("Dateityp: catalog", 35) in result["iwg_factors"]
+
+
+class TestInteractiveDataScoring:
+    """Test scoring for interactive_data (data portals)."""
+
+    def test_interactive_data_gets_30_bonus(self):
+        item = {"type": "interactive_data", "file_type": "portal"}
+        result = calculate_iwg_score(item)
+        # portal (30) + interactive_data type bonus (30) = 60
+        assert result["iwg_score"] == 60
+        assert ("Interaktives Datenportal", 30) in result["iwg_factors"]
+
+    def test_portal_file_type_scores_30_points(self):
+        item = {"file_type": "portal"}
+        result = calculate_iwg_score(item)
+        assert result["iwg_score"] == 30
+        assert ("Dateityp: portal", 30) in result["iwg_factors"]
+
+
 class TestMachineReadabilityScoring:
     """Test scoring based on machine readability."""
 

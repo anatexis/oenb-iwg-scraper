@@ -24,6 +24,8 @@ FILE_TYPE_SCORES = {
     "csv": 40,
     "xml": 40,
     "json": 40,
+    "catalog": 35,  # Standardized data catalog pages
+    "portal": 30,   # Interactive data portals
     "pdf": 20,
     "zip": 15,
     "doc": 5,
@@ -71,10 +73,17 @@ def calculate_iwg_score(item: dict) -> dict:
         score += points
         factors.append((f"Dateityp: {file_type}", points))
 
-    # Shiny app bonus
-    if item.get("type") == "shiny_app":
+    # Special item type bonuses
+    item_type = item.get("type")
+    if item_type == "shiny_app":
         score += 30
         factors.append(("Shiny App (visualisierte Daten)", 30))
+    elif item_type == "standardized_tables":
+        score += 35
+        factors.append(("Datenkatalog (strukturierte Daten)", 35))
+    elif item_type == "interactive_data":
+        score += 30
+        factors.append(("Interaktives Datenportal", 30))
 
     # Machine readability
     if item.get("machine_readable") is True:

@@ -368,6 +368,14 @@
             font-weight: 600;
             text-transform: uppercase;
         }
+        .badge-type-catalog {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-type-portal {
+            background: #cce5ff;
+            color: #004085;
+        }
         .badge-confidence {
             display: inline-block;
             padding: 0.2rem 0.5rem;
@@ -724,6 +732,28 @@
         // All items data
         const allItems = {{ items_json|safe }};
 
+        // German labels for file types
+        const fileTypeLabels = {
+            'xlsx': 'XLSX',
+            'xls': 'XLS',
+            'csv': 'CSV',
+            'xml': 'XML',
+            'json': 'JSON',
+            'pdf': 'PDF',
+            'zip': 'ZIP',
+            'doc': 'DOC',
+            'docx': 'DOCX',
+            'ppt': 'PPT',
+            'pptx': 'PPTX',
+            'catalog': 'Datenkatalog',
+            'portal': 'Datenportal'
+        };
+
+        // Get display label for file type
+        function getFileTypeLabel(fileType) {
+            return fileTypeLabels[fileType] || fileType.toUpperCase();
+        }
+
         // State management
         const STORAGE_KEY = 'oenb-iwg-review-state';
         let itemStates = {}; // { url: { status: 'pending'|'approved'|'rejected', note: '' } }
@@ -942,7 +972,7 @@
                     <tr data-url="${escapeHtml(item.url)}">
                         <td class="checkbox-cell"><input type="checkbox" class="item-checkbox"></td>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank" title="${escapeHtml(item.title || item.url)}">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
-                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span> <span class="badge-confidence badge-${item.iwg_confidence}">${item.iwg_confidence}</span></td>
                         <td>
@@ -976,7 +1006,7 @@
                 return `
                     <tr>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
-                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
                         <td>${escapeHtml(state.note) || '-'}</td>
@@ -1004,7 +1034,7 @@
                 return `
                     <tr>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
-                        <td><span class="badge-type">${escapeHtml(item.file_type.toUpperCase())}</span></td>
+                        <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
                         <td>${escapeHtml(state.note) || '-'}</td>
