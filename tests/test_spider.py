@@ -524,3 +524,25 @@ class TestFailedUrlLogger:
         assert "200" not in data["summary"]["http_errors"]
         assert "301" not in data["summary"]["http_errors"]
         assert data["summary"]["http_errors"]["404"] == 3
+
+
+class TestApiDetection:
+    """Test API endpoint URL detection."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_detects_api_path(self):
+        assert self.spider._is_potential_api("https://www.oenb.at/api/data")
+
+    def test_detects_oearb_path(self):
+        assert self.spider._is_potential_api("https://www.oenb.at/oearb/zinssatzwechselkurse/download")
+
+    def test_detects_rest_path(self):
+        assert self.spider._is_potential_api("https://www.oenb.at/rest/v1/currencies")
+
+    def test_detects_data_path(self):
+        assert self.spider._is_potential_api("https://www.oenb.at/data/exchange-rates")
+
+    def test_rejects_normal_page(self):
+        assert not self.spider._is_potential_api("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html")

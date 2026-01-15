@@ -32,6 +32,14 @@ class OenbSpider(scrapy.Spider):
         r"shiny\.oenb\.at",
     ]
 
+    # URL patterns that indicate potential API endpoints
+    API_PATTERNS = [
+        "/api/",
+        "/rest/",
+        "/oearb/",
+        "/data/",
+    ]
+
     def parse(self, response):
         """Parse a page for downloads and follow links."""
         # Skip non-text responses (images, etc.)
@@ -212,6 +220,15 @@ class OenbSpider(scrapy.Spider):
     def _is_shiny_app(self, url: str) -> bool:
         """Check if URL is a Shiny app."""
         return any(re.search(pattern, url, re.I) for pattern in self.SHINY_PATTERNS)
+
+    def _is_potential_api(self, url: str) -> bool:
+        """Check if URL matches any API endpoint pattern.
+
+        Detects URLs containing patterns like /api/, /rest/, /oearb/, /data/
+        which may indicate data APIs or endpoints.
+        """
+        url_lower = url.lower()
+        return any(pattern in url_lower for pattern in self.API_PATTERNS)
 
     def _is_internal_link(self, url: str) -> bool:
         """Check if URL is internal to oenb.at and uses http(s)."""
