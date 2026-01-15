@@ -49,6 +49,11 @@ class OenbSpider(scrapy.Spider):
         "/statistik/interaktiv",
     ]
 
+    # URL patterns for standardized tables (data catalog pages)
+    STANDARDIZED_TABLES_PATTERNS = [
+        "/statistik/standardisierte-tabellen",
+    ]
+
     def parse(self, response):
         """Parse a page for downloads and follow links."""
         # Skip non-text responses (images, etc.)
@@ -96,6 +101,21 @@ class OenbSpider(scrapy.Spider):
                     },
                     dont_filter=True,  # Allow fetching external domains
                 )
+
+            # Check if it's a standardized tables page (data catalog)
+            elif self._is_standardized_tables(full_url):
+                yield self._create_standardized_tables_item(
+                    url=full_url,
+                    title=link_text,
+                    found_on_page=page_url,
+                    page_section=page_section,
+                    section_heading=self._find_section_heading(link, response),
+                    page_date=page_date,
+                    language=page_language,
+                )
+                # Also follow the link to crawl for downloads
+                if self._is_internal_link(full_url):
+                    yield response.follow(full_url, callback=self.parse)
 
             # Check if it's an interactive data portal
             elif self._is_interactive_data(full_url):
@@ -262,6 +282,15 @@ class OenbSpider(scrapy.Spider):
         """
         url_lower = url.lower()
         return any(pattern in url_lower for pattern in self.INTERACTIVE_DATA_PATTERNS)
+
+    def _is_standardized_tables(self, url: str) -> bool:
+        """Check if URL is a standardized tables page (data catalog).
+
+        Detects URLs like /Statistik/Standardisierte-Tabellen/ which are
+        structured data catalog pages with links to tables, explanations, and charts.
+        """
+        url_lower = url.lower()
+        return any(pattern in url_lower for pattern in self.STANDARDIZED_TABLES_PATTERNS)
 
     def _is_internal_link(self, url: str) -> bool:
         """Check if URL is internal to oenb.at and uses http(s)."""
@@ -501,6 +530,26 @@ class OenbSpider(scrapy.Spider):
         item["page_date"] = kwargs["page_date"]
         item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
         item["machine_readable"] = True  # Interactive portals have queryable data
+        item["has_tables"] = None
+        item["language"] = kwargs["language"]
+        item["found_in_languages"] = None
+        item["sources"] = []
+        return item
+
+    def _create_standardized_tables_item(self, **kwargs) -> DownloadItem:
+        """Create a DownloadItem for a standardized tables page (data catalog)."""
+        item = DownloadItem()
+        item["url"] = kwargs["url"]
+        item["type"] = "standardized_tables"
+        item["file_type"] = "catalog"
+        item["file_size_bytes"] = None
+        item["title"] = kwargs["title"]
+        item["found_on_page"] = kwargs["found_on_page"]
+        item["page_section"] = kwargs["page_section"]
+        item["section_heading"] = kwargs["section_heading"]
+        item["page_date"] = kwargs["page_date"]
+        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
+        item["machine_readable"] = True  # Catalog pages link to structured data
         item["has_tables"] = None
         item["language"] = kwargs["language"]
         item["found_in_languages"] = None

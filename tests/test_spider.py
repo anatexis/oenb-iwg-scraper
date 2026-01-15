@@ -594,7 +594,30 @@ class TestInteractiveDataDetection:
         assert self.spider._is_interactive_data("https://www.oenb.at/isaweb/report")
 
     def test_rejects_normal_page(self):
-        assert not self.spider._is_interactive_data("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html")
+        assert not self.spider._is_interactive_data("https://www.oenb.at/Statistik/info.html")
 
     def test_rejects_download(self):
         assert not self.spider._is_interactive_data("https://www.oenb.at/file.csv")
+
+
+class TestStandardizedTablesDetection:
+    """Test standardized tables (data catalog) URL detection."""
+
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_detects_standardized_tables(self):
+        url = "https://www.oenb.at/Statistik/Standardisierte-Tabellen/zinssaetze-und-wechselkurse/Eurogeldmarkt-und-Eurosystemzinssaetze-.html"
+        assert self.spider._is_standardized_tables(url)
+
+    def test_detects_standardized_tables_root(self):
+        assert self.spider._is_standardized_tables("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html")
+
+    def test_case_insensitive(self):
+        assert self.spider._is_standardized_tables("https://www.oenb.at/statistik/standardisierte-tabellen/test.html")
+
+    def test_rejects_normal_statistik_page(self):
+        assert not self.spider._is_standardized_tables("https://www.oenb.at/Statistik/info.html")
+
+    def test_rejects_interactive_data(self):
+        assert not self.spider._is_standardized_tables("https://www.oenb.at/isawebstat/report")
