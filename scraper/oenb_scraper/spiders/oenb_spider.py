@@ -103,6 +103,18 @@ class OenbSpider(scrapy.Spider):
                     dont_filter=True,
                 )
 
+        # Check for data tables on this page
+        table_count = self._count_data_tables(response.text)
+        if table_count > 0:
+            yield self._create_webpage_item(
+                url=page_url,
+                title=response.css("title::text").get() or "",
+                page_section=page_section,
+                page_date=page_date,
+                language=page_language,
+                table_count=table_count,
+            )
+
     def parse_shiny_app(self, response):
         """Parse a Shiny app page to extract sources."""
         meta = response.meta
@@ -401,4 +413,26 @@ class OenbSpider(scrapy.Spider):
         item["language"] = kwargs["language"]
         item["found_in_languages"] = None  # Will be filled by pipeline
         item["sources"] = kwargs.get("sources", [])
+        return item
+
+    def _create_webpage_item(self, **kwargs) -> DownloadItem:
+        """Create a DownloadItem for a webpage with data tables."""
+        item = DownloadItem()
+        item["url"] = kwargs["url"]
+        item["type"] = "webpage_with_data"
+        item["file_type"] = "html"
+        item["file_size_bytes"] = None
+        item["title"] = kwargs["title"]
+        item["found_on_page"] = kwargs["url"]
+        item["page_section"] = kwargs["page_section"]
+        item["section_heading"] = ""
+        item["page_date"] = kwargs["page_date"]
+        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
+        item["machine_readable"] = True
+        item["has_tables"] = True
+        item["has_html_tables"] = True
+        item["table_count"] = kwargs["table_count"]
+        item["language"] = kwargs["language"]
+        item["found_in_languages"] = None
+        item["sources"] = []
         return item
