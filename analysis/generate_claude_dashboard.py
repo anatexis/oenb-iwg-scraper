@@ -10,6 +10,58 @@ from analysis.iwg_scorer import enrich_items_with_scores
 from analysis.sitemap_parser import parse_sitemap_html, get_default_sitemap_path
 
 
+def _normalize_section(s: str) -> str:
+    """Normalize section name for matching: lowercase, remove hyphens/spaces/underscores."""
+    if not s:
+        return ""
+    s = s.lower()
+    s = s.replace("ü", "ue").replace("ä", "ae").replace("ö", "oe").replace("ß", "ss")
+    s = s.replace("-", "").replace(" ", "").replace("_", "")
+    return s
+
+
+def _build_section_indices(items: list[dict]) -> tuple[dict, dict]:
+    """Build lookup indices for matching items to sections.
+
+    Returns:
+        Tuple of (items_by_original, items_by_normalized) dicts
+    """
+    by_original = {}
+    by_norm = {}
+    for item in items:
+        ps = item.get("page_section", "")
+        ps_lower = ps.lower()
+        by_original.setdefault(ps_lower, []).append(item)
+        by_norm.setdefault(_normalize_section(ps), []).append(item)
+    return by_original, by_norm
+
+
+def _match_items_for_slug(url_slug: str, by_original: dict, by_norm: dict) -> list[dict]:
+    """Find items matching a URL slug using direct and normalized matching."""
+    matched = []
+    seen = set()
+    slug_lower = url_slug.lower()
+    slug_norm = _normalize_section(url_slug)
+
+    for lookup, key in [(by_original, slug_lower), (by_norm, slug_norm)]:
+        for item in lookup.get(key, []):
+            item_id = id(item)
+            if item_id not in seen:
+                seen.add(item_id)
+                matched.append(item)
+    return matched
+
+
+def _populate_section_stats(section: dict, items: list[dict]) -> None:
+    """Populate a section dict with item statistics."""
+    section["item_count"] = len(items)
+    type_counts = Counter(i.get("file_type", "unknown") for i in items)
+    section["type_counts"] = dict(type_counts)
+    machine_readable = sum(type_counts.get(t, 0) for t in ["csv", "xlsx", "xls", "xml", "json"])
+    section["machine_readable_count"] = machine_readable
+    section["machine_readable_pct"] = round(machine_readable / len(items) * 100) if items else 0
+
+
 def load_data(json_path: str) -> list[dict]:
     """Load scraped data from JSON file.
 
@@ -102,102 +154,21 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
         isaweb_items = [i for i in enriched if "isaweb" in i.get("page_section", "").lower()]
         non_isaweb_items = [i for i in enriched if "isaweb" not in i.get("page_section", "").lower()]
 
-        # Build lookup: normalize page_section to match sitemap
-        def normalize_section(s):
-            """Normalize section name for matching: lowercase, remove hyphens/spaces/underscores."""
-            if not s:
-                return ""
-            # Convert German umlauts for matching
-            s = s.lower()
-            s = s.replace("ü", "ue").replace("ä", "ae").replace("ö", "oe").replace("ß", "ss")
-            s = s.replace("-", "").replace(" ", "").replace("_", "")
-            return s
-
-        # Group non-isaweb items by their original page_section (for direct lookup)
-        # and also by normalized form
-        section_items_by_original = {}
-        section_items_by_norm = {}
-        for item in non_isaweb_items:
-            ps = item.get("page_section", "")
-            # Store by original (lowercase)
-            ps_lower = ps.lower()
-            if ps_lower not in section_items_by_original:
-                section_items_by_original[ps_lower] = []
-            section_items_by_original[ps_lower].append(item)
-            # Store by normalized
-            norm = normalize_section(ps)
-            if norm not in section_items_by_norm:
-                section_items_by_norm[norm] = []
-            section_items_by_norm[norm].append(item)
+        # Build item lookup indices
+        items_by_original, items_by_norm = _build_section_indices(non_isaweb_items)
 
         # Calculate stats per sitemap section (excluding isaweb)
         for section in sitemap_data:
-            section_norm = normalize_section(section["name"])
-            # Extract URL slug (e.g., "Ueber-Uns" from "https://www.oenb.at/Ueber-Uns.html")
             url_slug = section["url"].split("/")[-1].replace(".html", "")
-            url_slug_lower = url_slug.lower()
-            url_slug_norm = normalize_section(url_slug)
-
-            # Find matching items using multiple strategies
-            matched_items = []
-            matched_keys = set()
-
-            # Strategy 1: Direct match on original page_section (lowercase)
-            if url_slug_lower in section_items_by_original:
-                for item in section_items_by_original[url_slug_lower]:
-                    key = id(item)
-                    if key not in matched_keys:
-                        matched_keys.add(key)
-                        matched_items.append(item)
-
-            # Strategy 2: Normalized match
-            if url_slug_norm in section_items_by_norm:
-                for item in section_items_by_norm[url_slug_norm]:
-                    key = id(item)
-                    if key not in matched_keys:
-                        matched_keys.add(key)
-                        matched_items.append(item)
-
-            section["item_count"] = len(matched_items)
-
-            # Count by file type for color coding
-            type_counts = Counter(i.get("file_type", "unknown") for i in matched_items)
-            section["type_counts"] = dict(type_counts)
-
-            # Calculate "quality" score (% machine-readable: csv, xlsx, xml, json)
-            machine_readable = sum(type_counts.get(t, 0) for t in ["csv", "xlsx", "xls", "xml", "json"])
-            section["machine_readable_count"] = machine_readable
-            section["machine_readable_pct"] = round(machine_readable / len(matched_items) * 100) if matched_items else 0
+            matched = _match_items_for_slug(url_slug, items_by_original, items_by_norm)
+            _populate_section_stats(section, matched)
 
             # Also calculate subsection stats
-            if section.get("subsections"):
-                for sub in section["subsections"]:
-                    sub_url_slug = sub["url"].split("/")[-1].replace(".html", "")
-                    sub_url_slug_lower = sub_url_slug.lower()
-                    sub_url_slug_norm = normalize_section(sub_url_slug)
-
-                    sub_items = []
-                    sub_matched_keys = set()
-
-                    # Direct match
-                    if sub_url_slug_lower in section_items_by_original:
-                        for item in section_items_by_original[sub_url_slug_lower]:
-                            key = id(item)
-                            if key not in sub_matched_keys:
-                                sub_matched_keys.add(key)
-                                sub_items.append(item)
-
-                    # Normalized match
-                    if sub_url_slug_norm in section_items_by_norm:
-                        for item in section_items_by_norm[sub_url_slug_norm]:
-                            key = id(item)
-                            if key not in sub_matched_keys:
-                                sub_matched_keys.add(key)
-                                sub_items.append(item)
-
-                    sub["item_count"] = len(sub_items)
-                    sub_type_counts = Counter(i.get("file_type", "unknown") for i in sub_items)
-                    sub["type_counts"] = dict(sub_type_counts)
+            for sub in section.get("subsections", []):
+                sub_slug = sub["url"].split("/")[-1].replace(".html", "")
+                sub_matched = _match_items_for_slug(sub_slug, items_by_original, items_by_norm)
+                sub["item_count"] = len(sub_matched)
+                sub["type_counts"] = dict(Counter(i.get("file_type", "unknown") for i in sub_matched))
 
         # Add isaweb as special section
         isaweb_section = {

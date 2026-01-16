@@ -74,7 +74,8 @@ class OenbSpider(scrapy.Spider):
 
             # Check if it's a download
             if self._is_download(full_url):
-                yield self._create_download_item(
+                yield self._create_item(
+                    "download",
                     url=full_url,
                     title=link_text,
                     found_on_page=page_url,
@@ -104,7 +105,8 @@ class OenbSpider(scrapy.Spider):
 
             # Check if it's a standardized tables page (data catalog)
             elif self._is_standardized_tables(full_url):
-                yield self._create_standardized_tables_item(
+                yield self._create_item(
+                    "standardized_tables",
                     url=full_url,
                     title=link_text,
                     found_on_page=page_url,
@@ -119,7 +121,8 @@ class OenbSpider(scrapy.Spider):
 
             # Check if it's an interactive data portal
             elif self._is_interactive_data(full_url):
-                yield self._create_interactive_data_item(
+                yield self._create_item(
+                    "interactive_data",
                     url=full_url,
                     title=link_text,
                     found_on_page=page_url,
@@ -158,7 +161,8 @@ class OenbSpider(scrapy.Spider):
         # Check for data tables on this page
         table_count = self._count_data_tables(response.text)
         if table_count > 0:
-            yield self._create_webpage_item(
+            yield self._create_item(
+                "webpage_with_data",
                 url=page_url,
                 title=response.css("title::text").get() or "",
                 page_section=page_section,
@@ -174,7 +178,8 @@ class OenbSpider(scrapy.Spider):
         # Extract sources from the Shiny app page
         sources = self._extract_sources_from_shiny(response)
 
-        yield self._create_shiny_item(
+        yield self._create_item(
+            "shiny_app",
             url=meta["shiny_url"],
             title=meta["title"],
             found_on_page=meta["found_on_page"],
@@ -456,104 +461,62 @@ class OenbSpider(scrapy.Spider):
 
         return "unknown"
 
-    def _create_download_item(self, **kwargs) -> DownloadItem:
-        """Create a DownloadItem for a downloadable file."""
+    # Type-specific defaults for item creation
+    _ITEM_TYPE_DEFAULTS = {
+        "download": {
+            "file_type": None,  # Computed from URL
+            "machine_readable": None,
+        },
+        "shiny_app": {
+            "file_type": "shiny",
+            "machine_readable": True,
+        },
+        "webpage_with_data": {
+            "file_type": "html",
+            "machine_readable": True,
+            "has_tables": True,
+            "has_html_tables": True,
+        },
+        "interactive_data": {
+            "file_type": "portal",
+            "machine_readable": True,
+        },
+        "standardized_tables": {
+            "file_type": "catalog",
+            "machine_readable": True,
+        },
+    }
+
+    def _create_item(self, item_type: str, **kwargs) -> DownloadItem:
+        """Create a DownloadItem of the specified type.
+
+        Args:
+            item_type: One of 'download', 'shiny_app', 'webpage_with_data',
+                      'interactive_data', 'standardized_tables'
+            **kwargs: Item fields (url, title, found_on_page, page_section, etc.)
+        """
+        defaults = self._ITEM_TYPE_DEFAULTS.get(item_type, {})
+
         item = DownloadItem()
         item["url"] = kwargs["url"]
-        item["type"] = "download"
-        item["file_type"] = self._get_file_extension(kwargs["url"])
-        item["file_size_bytes"] = None  # Will be filled by pipeline
-        item["title"] = kwargs["title"]
-        item["found_on_page"] = kwargs["found_on_page"]
-        item["page_section"] = kwargs["page_section"]
-        item["section_heading"] = kwargs["section_heading"]
-        item["page_date"] = kwargs["page_date"]
+        item["type"] = item_type
+        item["file_type"] = defaults.get("file_type") or self._get_file_extension(kwargs["url"])
+        item["file_size_bytes"] = None
+        item["title"] = kwargs.get("title", "")
+        item["found_on_page"] = kwargs.get("found_on_page", kwargs["url"])
+        item["page_section"] = kwargs.get("page_section", "")
+        item["section_heading"] = kwargs.get("section_heading", "")
+        item["page_date"] = kwargs.get("page_date")
         item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
-        item["machine_readable"] = None  # Will be filled by pipeline for PDFs
-        item["has_tables"] = None
-        item["language"] = kwargs["language"]
-        item["found_in_languages"] = None  # Will be filled by pipeline
+        item["machine_readable"] = defaults.get("machine_readable")
+        item["has_tables"] = defaults.get("has_tables")
+        item["language"] = kwargs.get("language", "de")
+        item["found_in_languages"] = None
         item["sources"] = kwargs.get("sources", [])
-        return item
 
-    def _create_shiny_item(self, **kwargs) -> DownloadItem:
-        """Create a DownloadItem for a Shiny app."""
-        item = DownloadItem()
-        item["url"] = kwargs["url"]
-        item["type"] = "shiny_app"
-        item["file_type"] = "shiny"
-        item["file_size_bytes"] = None
-        item["title"] = kwargs["title"]
-        item["found_on_page"] = kwargs["found_on_page"]
-        item["page_section"] = kwargs["page_section"]
-        item["section_heading"] = kwargs["section_heading"]
-        item["page_date"] = kwargs["page_date"]
-        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
-        item["machine_readable"] = True  # Shiny apps have data
-        item["has_tables"] = None
-        item["language"] = kwargs["language"]
-        item["found_in_languages"] = None  # Will be filled by pipeline
-        item["sources"] = kwargs.get("sources", [])
-        return item
+        # Type-specific extra fields
+        if item_type == "webpage_with_data":
+            item["has_html_tables"] = True
+            item["table_count"] = kwargs.get("table_count", 0)
 
-    def _create_webpage_item(self, **kwargs) -> DownloadItem:
-        """Create a DownloadItem for a webpage with data tables."""
-        item = DownloadItem()
-        item["url"] = kwargs["url"]
-        item["type"] = "webpage_with_data"
-        item["file_type"] = "html"
-        item["file_size_bytes"] = None
-        item["title"] = kwargs["title"]
-        item["found_on_page"] = kwargs["url"]
-        item["page_section"] = kwargs["page_section"]
-        item["section_heading"] = ""
-        item["page_date"] = kwargs["page_date"]
-        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
-        item["machine_readable"] = True
-        item["has_tables"] = True
-        item["has_html_tables"] = True
-        item["table_count"] = kwargs["table_count"]
-        item["language"] = kwargs["language"]
-        item["found_in_languages"] = None
-        item["sources"] = []
-        return item
-
-    def _create_interactive_data_item(self, **kwargs) -> DownloadItem:
-        """Create a DownloadItem for an interactive data portal."""
-        item = DownloadItem()
-        item["url"] = kwargs["url"]
-        item["type"] = "interactive_data"
-        item["file_type"] = "portal"
-        item["file_size_bytes"] = None
-        item["title"] = kwargs["title"]
-        item["found_on_page"] = kwargs["found_on_page"]
-        item["page_section"] = kwargs["page_section"]
-        item["section_heading"] = kwargs["section_heading"]
-        item["page_date"] = kwargs["page_date"]
-        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
-        item["machine_readable"] = True  # Interactive portals have queryable data
-        item["has_tables"] = None
-        item["language"] = kwargs["language"]
-        item["found_in_languages"] = None
-        item["sources"] = []
-        return item
-
-    def _create_standardized_tables_item(self, **kwargs) -> DownloadItem:
-        """Create a DownloadItem for a standardized tables page (data catalog)."""
-        item = DownloadItem()
-        item["url"] = kwargs["url"]
-        item["type"] = "standardized_tables"
-        item["file_type"] = "catalog"
-        item["file_size_bytes"] = None
-        item["title"] = kwargs["title"]
-        item["found_on_page"] = kwargs["found_on_page"]
-        item["page_section"] = kwargs["page_section"]
-        item["section_heading"] = kwargs["section_heading"]
-        item["page_date"] = kwargs["page_date"]
-        item["scraped_at"] = datetime.utcnow().isoformat() + "Z"
-        item["machine_readable"] = True  # Catalog pages link to structured data
-        item["has_tables"] = None
-        item["language"] = kwargs["language"]
-        item["found_in_languages"] = None
-        item["sources"] = []
         return item
