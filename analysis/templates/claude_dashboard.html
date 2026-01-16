@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+{% set file_type_labels = {
+    'xlsx': 'XLSX', 'xls': 'XLS', 'csv': 'CSV', 'xml': 'XML', 'json': 'JSON',
+    'pdf': 'PDF', 'zip': 'ZIP', 'doc': 'DOC', 'docx': 'DOCX', 'ppt': 'PPT', 'pptx': 'PPTX',
+    'html': 'HTML', 'catalog': 'Stand. Tab.', 'portal': 'isaweb', 'shiny': 'Shiny'
+} %}
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -423,12 +428,233 @@
             .filter-group select, .filter-group input { width: 100%; }
         }
 
-        /* Sitemap visualization */
-        .sitemap-bar:hover div > div {
-            background: #4a7ab8 !important;
+        /* Sitemap tree visualization */
+        .sitemap-tree {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
         }
-        .sitemap-bar:hover {
-            background: #fafafa;
+        .sitemap-root {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+            padding: 0.5rem 0;
+            border-bottom: 2px solid var(--primary);
+            margin-bottom: 1rem;
+        }
+        .sitemap-level1 {
+            margin-left: 1.5rem;
+            border-left: 2px solid #e2e8f0;
+            padding-left: 0;
+        }
+        .sitemap-section {
+            position: relative;
+        }
+        .sitemap-section::before {
+            content: '';
+            position: absolute;
+            left: -2px;
+            top: 0;
+            width: 1rem;
+            height: 1.2rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .sitemap-section-header {
+            display: flex;
+            align-items: center;
+            padding: 0.4rem 0.5rem 0.4rem 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .sitemap-section-header:hover {
+            background: #f7fafc;
+        }
+        .sitemap-section-name {
+            font-weight: 500;
+            color: var(--secondary);
+            flex: 1;
+        }
+        .sitemap-section-name a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .sitemap-section-name a:hover {
+            text-decoration: underline;
+        }
+        .sitemap-toggle {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #718096;
+            margin-right: 0.5rem;
+            user-select: none;
+        }
+        .sitemap-stats {
+            font-size: 0.75rem;
+            color: #718096;
+            margin-left: 0.5rem;
+        }
+        .sitemap-stats .dl-count {
+            color: var(--accent);
+            font-weight: 500;
+        }
+        .sitemap-level2 {
+            margin-left: 2.5rem;
+            border-left: 1px solid #e2e8f0;
+            display: none;
+            padding-bottom: 0.5rem;
+        }
+        .sitemap-section.open > .sitemap-level2 {
+            display: block;
+        }
+        .sitemap-subsection {
+            position: relative;
+            padding: 0.25rem 0.5rem 0.25rem 1rem;
+        }
+        .sitemap-subsection::before {
+            content: '';
+            position: absolute;
+            left: -1px;
+            top: 0;
+            width: 0.8rem;
+            height: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .sitemap-subsection a {
+            color: #4a5568;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .sitemap-subsection a:hover {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+        /* Treemap styles */
+        .treemap-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            padding: 3px;
+            background: #f0f4f8;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .treemap-item {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+            border-radius: 4px;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            overflow: hidden;
+            min-height: 60px;
+        }
+        .treemap-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .treemap-item .name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-align: center;
+            word-break: break-word;
+        }
+        .treemap-item .count {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+        .treemap-item .pct {
+            font-size: 0.75rem;
+            opacity: 0.9;
+        }
+        .treemap-item.large .name { font-size: 1.1rem; }
+        .treemap-item.large .count { font-size: 1.5rem; }
+        .treemap-item.small .name { font-size: 0.7rem; }
+        .treemap-item.small .count { font-size: 0.9rem; }
+        .treemap-item.tiny { padding: 4px; min-height: 40px; }
+        .treemap-item.tiny .name { font-size: 0.65rem; }
+        .treemap-item.tiny .count { font-size: 0.75rem; margin-top: 2px; }
+        .treemap-item.tiny .pct { display: none; }
+
+        /* Data bar in tree */
+        .data-bar {
+            display: flex;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #e2e8f0;
+            margin-left: 0.5rem;
+            flex: 1;
+            max-width: 200px;
+        }
+        .data-bar-segment {
+            height: 100%;
+            transition: width 0.3s;
+        }
+        .data-bar-segment.csv { background: #38a169; }
+        .data-bar-segment.xlsx { background: #2f855a; }
+        .data-bar-segment.pdf { background: #d69e2e; }
+        .data-bar-segment.portal { background: #3182ce; }
+        .data-bar-segment.catalog { background: #805ad5; }
+        .data-bar-segment.other { background: #718096; }
+
+        .sitemap-section-header .item-count {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 50px;
+            text-align: right;
+        }
+
+        /* View toggle */
+        .view-toggle {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .view-toggle button {
+            padding: 0.4rem 1rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .view-toggle button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Legend */
+        .treemap-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
         }
 
         /* Modal Overlay */
@@ -637,7 +863,7 @@
                     <div class="bar-chart" id="filetype-chart">
                         {% for ft, count in file_type_stats.items() %}
                         <div class="bar-row">
-                            <span class="bar-label">{{ ft|upper }}</span>
+                            <span class="bar-label">{{ file_type_labels.get(ft, ft|upper) }}</span>
                             <div class="bar-track">
                                 <div class="bar-fill" style="width: {{ (count / total_count * 100)|round|int }}%"></div>
                             </div>
@@ -693,7 +919,7 @@
                     <select id="filter-filetype">
                         <option value="">Alle</option>
                         {% for ft in file_types %}
-                        <option value="{{ ft }}">{{ ft|upper }}</option>
+                        <option value="{{ ft }}">{{ file_type_labels.get(ft, ft|upper) }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -710,6 +936,10 @@
                     <label>Suche</label>
                     <input type="text" id="filter-search" placeholder="Titel oder URL...">
                 </div>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-left: 0.5rem;">
+                    <input type="checkbox" id="filter-hide-isaweb" onchange="renderReviewTable()" checked>
+                    <span>Ohne isaweb</span>
+                </label>
                 <button class="btn btn-secondary" onclick="resetFilters()">Zurücksetzen</button>
             </div>
 
@@ -832,29 +1062,109 @@
     <!-- Tab 5: Sitemap -->
     <div id="tab-sitemap" class="tab-content">
         <div class="card">
-            <h2>OeNB Website-Struktur</h2>
-            <p class="text-muted">Klicken Sie auf einen Bereich, um die OeNB-Seite zu öffnen.</p>
+            <h2>OeNB Datenverteilung</h2>
+            <p class="text-muted">Visualisierung der <span id="sitemap-total-display">{{ sitemap_total|default(0) }}</span> erfassten Datenquellen nach Website-Bereich.</p>
 
-            <div class="sitemap-viz" style="margin-top: 2rem;">
+            <!-- Controls -->
+            <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <div class="view-toggle">
+                    <button class="active" onclick="showSitemapView('treemap', this)">Treemap</button>
+                    <button onclick="showSitemapView('tree', this)">Baumansicht</button>
+                </div>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                    <input type="checkbox" id="hide-isaweb" onchange="toggleIsaweb()">
+                    <span>ohne isaweb</span>
+                </label>
+            </div>
+
+            <!-- Treemap View -->
+            <div id="sitemap-treemap" class="treemap-container">
                 {% for section in sitemap_data %}
-                <a href="{{ section.url }}" target="_blank" class="sitemap-bar" style="text-decoration: none; display: block; margin-bottom: 0.5rem;">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <span style="width: 120px; font-size: 0.85rem; color: #333;">{{ section.name }}</span>
-                        <div style="flex: 1; background: #f0f0f0; height: 24px; position: relative;">
-                            {% if sitemap_data|length > 0 %}
-                            <div style="background: #2c5282; height: 100%; width: {{ (section.subsections|length / sitemap_data[0].subsections|length * 100)|round if sitemap_data[0].subsections|length > 0 else 100 }}%;"></div>
-                            {% endif %}
-                        </div>
-                        <span style="width: 60px; text-align: right; font-size: 0.8rem; color: #666;">{{ section.subsections|length }}</span>
-                        <span style="width: 80px; text-align: right; font-size: 0.8rem; color: #2c5282; font-weight: 500;">{{ section.download_count|default(0) }} DL</span>
-                    </div>
+                {% if section.item_count > 0 %}
+                {% set bg_color = '#3182ce' if section.get('is_isaweb') else ('#38a169' if section.machine_readable_pct > 50 else ('#d69e2e' if section.machine_readable_pct > 20 else '#805ad5')) %}
+                <a href="{{ section.url }}" target="_blank"
+                   class="treemap-item {% if section.get('is_isaweb') %}isaweb-item{% endif %}"
+                   data-count="{{ section.item_count }}"
+                   data-pct="{{ section.item_pct }}"
+                   data-pct-no-isaweb="{{ section.item_pct_no_isaweb }}"
+                   style="background: {{ bg_color }};"
+                   title="{{ section.name }}: {{ section.item_count }} Items">
+                    <span class="name">{{ section.name }}</span>
+                    <span class="count">{{ section.item_count }}</span>
                 </a>
+                {% endif %}
                 {% endfor %}
             </div>
 
-            <p style="margin-top: 2rem; font-size: 0.75rem; color: #888;">
-                Balkenbreite = Anzahl Unterseiten im Bereich | DL = gefundene Downloads
-            </p>
+            <!-- Legend -->
+            <div class="treemap-legend">
+                <div class="legend-item"><span class="legend-color" style="background: #3182ce;"></span> isaweb Portal</div>
+                <div class="legend-item"><span class="legend-color" style="background: #38a169;"></span> >50% maschinenlesbar</div>
+                <div class="legend-item"><span class="legend-color" style="background: #d69e2e;"></span> 20-50% maschinenlesbar</div>
+                <div class="legend-item"><span class="legend-color" style="background: #805ad5;"></span> <20% maschinenlesbar</div>
+            </div>
+
+            <!-- Tree View (hidden by default) -->
+            <div id="sitemap-tree" class="sitemap-tree" style="display: none; margin-top: 1.5rem;">
+                <div class="sitemap-root">
+                    <a href="https://www.oenb.at" target="_blank" style="color: inherit; text-decoration: none;">Oesterreichische Nationalbank (OeNB)</a>
+                </div>
+
+                <div class="sitemap-level1">
+                    {% for section in sitemap_data %}
+                    <div class="sitemap-section {% if section.get('is_isaweb') %}isaweb-item{% endif %}" data-section="{{ loop.index }}">
+                        <div class="sitemap-section-header" onclick="toggleSitemapSection(this.parentElement)">
+                            <span class="sitemap-toggle">►</span>
+                            <span class="sitemap-section-name">
+                                <a href="{{ section.url }}" target="_blank" onclick="event.stopPropagation()">{{ section.name }}</a>
+                            </span>
+                            <span class="item-count">{{ section.item_count }}</span>
+                        </div>
+
+                        {% if section.subsections %}
+                        <div class="sitemap-level2">
+                            {% for sub in section.subsections %}
+                            <div class="sitemap-subsection" style="display: flex; align-items: center;">
+                                <a href="{{ sub.url }}" target="_blank" style="min-width: 180px;">{{ sub.name }}</a>
+                                {% if sub.item_count is defined and sub.item_count > 0 %}
+                                <div class="data-bar" title="{% for ft, cnt in sub.type_counts.items() %}{{ ft }}: {{ cnt }} {% endfor %}">
+                                    {% set total = sub.item_count %}
+                                    {% for ft in ['csv', 'xlsx', 'pdf', 'portal', 'catalog'] %}
+                                    {% if sub.type_counts.get(ft, 0) > 0 %}
+                                    <div class="data-bar-segment {{ ft }}" style="width: {{ (sub.type_counts.get(ft, 0) / total * 100)|round }}%;"></div>
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% set other = total - sub.type_counts.get('csv', 0) - sub.type_counts.get('xlsx', 0) - sub.type_counts.get('pdf', 0) - sub.type_counts.get('portal', 0) - sub.type_counts.get('catalog', 0) %}
+                                    {% if other > 0 %}
+                                    <div class="data-bar-segment other" style="width: {{ (other / total * 100)|round }}%;"></div>
+                                    {% endif %}
+                                </div>
+                                <span style="font-size: 0.75rem; color: #666; min-width: 40px; text-align: right;">{{ sub.item_count }}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Bar Legend -->
+            <div class="treemap-legend" style="margin-top: 1rem;">
+                <span style="font-weight: 500; margin-right: 0.5rem;">Balken:</span>
+                <div class="legend-item"><span class="legend-color" style="background: #38a169;"></span> CSV</div>
+                <div class="legend-item"><span class="legend-color" style="background: #2f855a;"></span> XLSX</div>
+                <div class="legend-item"><span class="legend-color" style="background: #d69e2e;"></span> PDF</div>
+                <div class="legend-item"><span class="legend-color" style="background: #3182ce;"></span> Portal</div>
+                <div class="legend-item"><span class="legend-color" style="background: #805ad5;"></span> Katalog</div>
+                <div class="legend-item"><span class="legend-color" style="background: #718096;"></span> Andere</div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="expandAllSitemap()">Alle öffnen</button>
+                <button class="btn btn-secondary btn-sm" onclick="collapseAllSitemap()">Alle schließen</button>
+            </div>
         </div>
     </div>
 
@@ -922,11 +1232,11 @@
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" name="format-filter" value="catalog" checked>
-                        <span>Datenkatalog</span>
+                        <span>Stand. Tab.</span>
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" name="format-filter" value="portal" checked>
-                        <span>Datenportal</span>
+                        <span>isaweb</span>
                     </label>
                     <label class="checkbox-label">
                         <input type="checkbox" name="format-filter" value="shiny" checked>
@@ -966,8 +1276,8 @@
             'docx': 'DOCX',
             'ppt': 'PPT',
             'pptx': 'PPTX',
-            'catalog': 'Datenkatalog',
-            'portal': 'Datenportal'
+            'catalog': 'Stand. Tab.',
+            'portal': 'isaweb'
         };
 
         // Get display label for file type
@@ -1059,6 +1369,71 @@
             input.value = '';
         }
 
+        // Sitemap view toggle
+        function showSitemapView(view, btn) {
+            document.getElementById('sitemap-treemap').style.display = view === 'treemap' ? 'flex' : 'none';
+            document.getElementById('sitemap-tree').style.display = view === 'tree' ? 'block' : 'none';
+            document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        // Toggle isaweb visibility
+        const SITEMAP_TOTAL = {{ sitemap_total|default(0) }};
+        const SITEMAP_TOTAL_NO_ISAWEB = {{ sitemap_total_no_isaweb|default(0) }};
+
+        function toggleIsaweb() {
+            const hideIsaweb = document.getElementById('hide-isaweb').checked;
+
+            // Update total display
+            document.getElementById('sitemap-total-display').textContent =
+                hideIsaweb ? SITEMAP_TOTAL_NO_ISAWEB : SITEMAP_TOTAL;
+
+            // Hide/show isaweb items
+            document.querySelectorAll('.isaweb-item').forEach(item => {
+                item.style.display = hideIsaweb ? 'none' : '';
+            });
+
+            // Update treemap flex sizes
+            document.querySelectorAll('.treemap-item:not(.isaweb-item)').forEach(item => {
+                const pct = hideIsaweb ?
+                    parseFloat(item.dataset.pctNoIsaweb) :
+                    parseFloat(item.dataset.pct);
+                item.style.flex = `${pct || 1} 1 0`;
+
+                // Update size classes
+                item.classList.remove('large', 'small', 'tiny');
+                if (pct > 30) item.classList.add('large');
+                else if (pct < 5) item.classList.add('small');
+                else if (pct < 2) item.classList.add('tiny');
+
+                // Update min-width
+                if (pct > 20) item.style.minWidth = '200px';
+                else if (pct > 5) item.style.minWidth = '120px';
+                else item.style.minWidth = '80px';
+            });
+        }
+
+        // Sitemap tree functions
+        function toggleSitemapSection(section) {
+            section.classList.toggle('open');
+            const toggle = section.querySelector('.sitemap-toggle');
+            toggle.textContent = section.classList.contains('open') ? '▼' : '►';
+        }
+
+        function expandAllSitemap() {
+            document.querySelectorAll('.sitemap-section').forEach(section => {
+                section.classList.add('open');
+                section.querySelector('.sitemap-toggle').textContent = '▼';
+            });
+        }
+
+        function collapseAllSitemap() {
+            document.querySelectorAll('.sitemap-section').forEach(section => {
+                section.classList.remove('open');
+                section.querySelector('.sitemap-toggle').textContent = '►';
+            });
+        }
+
         // Tab switching
         function initTabs() {
             document.querySelectorAll('.tab').forEach(tab => {
@@ -1084,6 +1459,7 @@
             document.getElementById('filter-filetype').value = '';
             document.getElementById('filter-section').value = '';
             document.getElementById('filter-search').value = '';
+            document.getElementById('filter-hide-isaweb').checked = false;
             renderReviewTable();
         }
 
@@ -1156,10 +1532,16 @@
             const filetype = document.getElementById('filter-filetype').value;
             const section = document.getElementById('filter-section').value;
             const search = document.getElementById('filter-search').value.toLowerCase();
+            const hideIsaweb = document.getElementById('filter-hide-isaweb').checked;
 
             return allItems.filter(item => {
                 const state = itemStates[item.url];
                 if (state.status !== 'pending') return false;
+                // Filter out isaweb if checkbox is checked (by page_section OR file_type portal)
+                if (hideIsaweb) {
+                    const section = (item.page_section || '').toLowerCase();
+                    if (section.includes('isaweb') || item.file_type === 'portal') return false;
+                }
                 if (confidence && item.iwg_confidence !== confidence) return false;
                 if (filetype && item.file_type !== filetype) return false;
                 if (section && item.page_section !== section) return false;

@@ -43,8 +43,8 @@ class DeepScanner:
                 item["scan_result"] = scan_result
                 if scan_result["status"] == "error":
                     # No penalty, just mark it (penalty skipped per user request)
-                    # item["iwg_score"] = max(0, item.get("iwg_score", 0) - 30)
-                    item["iwg_factors"].append(("Broken File (Deep Scan)", 0))
+                    if "iwg_factors" in item:
+                        item["iwg_factors"].append(("Broken File (Deep Scan)", 0))
             else:
                 item["scan_result"] = None
         

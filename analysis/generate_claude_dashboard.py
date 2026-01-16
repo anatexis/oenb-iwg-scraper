@@ -79,7 +79,7 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
 
     # Unique values for filters
     file_types = sorted(set(i["file_type"] for i in enriched))
-    sections = sorted(set(i["page_section"] for i in enriched if i.get("page_section")))
+    sections = sorted(set(i["page_section"] for i in enriched if i.get("page_section")), key=str.lower)
 
     # Setup Jinja2
     template_dir = Path(__file__).parent / "templates"
@@ -97,19 +97,135 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
     sitemap_path = get_default_sitemap_path()
     if sitemap_path.exists():
         sitemap_data = parse_sitemap_html(str(sitemap_path))
-        # Add download counts per section
-        section_downloads = Counter(i["page_section"] for i in enriched if i.get("page_section"))
+
+        # Separate isaweb items from rest
+        isaweb_items = [i for i in enriched if "isaweb" in i.get("page_section", "").lower()]
+        non_isaweb_items = [i for i in enriched if "isaweb" not in i.get("page_section", "").lower()]
+
+        # Build lookup: normalize page_section to match sitemap
+        def normalize_section(s):
+            """Normalize section name for matching: lowercase, remove hyphens/spaces/underscores."""
+            if not s:
+                return ""
+            # Convert German umlauts for matching
+            s = s.lower()
+            s = s.replace("ü", "ue").replace("ä", "ae").replace("ö", "oe").replace("ß", "ss")
+            s = s.replace("-", "").replace(" ", "").replace("_", "")
+            return s
+
+        # Group non-isaweb items by their original page_section (for direct lookup)
+        # and also by normalized form
+        section_items_by_original = {}
+        section_items_by_norm = {}
+        for item in non_isaweb_items:
+            ps = item.get("page_section", "")
+            # Store by original (lowercase)
+            ps_lower = ps.lower()
+            if ps_lower not in section_items_by_original:
+                section_items_by_original[ps_lower] = []
+            section_items_by_original[ps_lower].append(item)
+            # Store by normalized
+            norm = normalize_section(ps)
+            if norm not in section_items_by_norm:
+                section_items_by_norm[norm] = []
+            section_items_by_norm[norm].append(item)
+
+        # Calculate stats per sitemap section (excluding isaweb)
         for section in sitemap_data:
-            section_key = section["name"].replace(" ", "-")
-            # Try various key formats
-            download_count = 0
-            for key in [section["name"], section_key, section["url"].split("/")[-1].replace(".html", "")]:
-                if key in section_downloads:
-                    download_count = section_downloads[key]
-                    break
-            section["download_count"] = download_count
+            section_norm = normalize_section(section["name"])
+            # Extract URL slug (e.g., "Ueber-Uns" from "https://www.oenb.at/Ueber-Uns.html")
+            url_slug = section["url"].split("/")[-1].replace(".html", "")
+            url_slug_lower = url_slug.lower()
+            url_slug_norm = normalize_section(url_slug)
+
+            # Find matching items using multiple strategies
+            matched_items = []
+            matched_keys = set()
+
+            # Strategy 1: Direct match on original page_section (lowercase)
+            if url_slug_lower in section_items_by_original:
+                for item in section_items_by_original[url_slug_lower]:
+                    key = id(item)
+                    if key not in matched_keys:
+                        matched_keys.add(key)
+                        matched_items.append(item)
+
+            # Strategy 2: Normalized match
+            if url_slug_norm in section_items_by_norm:
+                for item in section_items_by_norm[url_slug_norm]:
+                    key = id(item)
+                    if key not in matched_keys:
+                        matched_keys.add(key)
+                        matched_items.append(item)
+
+            section["item_count"] = len(matched_items)
+
+            # Count by file type for color coding
+            type_counts = Counter(i.get("file_type", "unknown") for i in matched_items)
+            section["type_counts"] = dict(type_counts)
+
+            # Calculate "quality" score (% machine-readable: csv, xlsx, xml, json)
+            machine_readable = sum(type_counts.get(t, 0) for t in ["csv", "xlsx", "xls", "xml", "json"])
+            section["machine_readable_count"] = machine_readable
+            section["machine_readable_pct"] = round(machine_readable / len(matched_items) * 100) if matched_items else 0
+
+            # Also calculate subsection stats
+            if section.get("subsections"):
+                for sub in section["subsections"]:
+                    sub_url_slug = sub["url"].split("/")[-1].replace(".html", "")
+                    sub_url_slug_lower = sub_url_slug.lower()
+                    sub_url_slug_norm = normalize_section(sub_url_slug)
+
+                    sub_items = []
+                    sub_matched_keys = set()
+
+                    # Direct match
+                    if sub_url_slug_lower in section_items_by_original:
+                        for item in section_items_by_original[sub_url_slug_lower]:
+                            key = id(item)
+                            if key not in sub_matched_keys:
+                                sub_matched_keys.add(key)
+                                sub_items.append(item)
+
+                    # Normalized match
+                    if sub_url_slug_norm in section_items_by_norm:
+                        for item in section_items_by_norm[sub_url_slug_norm]:
+                            key = id(item)
+                            if key not in sub_matched_keys:
+                                sub_matched_keys.add(key)
+                                sub_items.append(item)
+
+                    sub["item_count"] = len(sub_items)
+                    sub_type_counts = Counter(i.get("file_type", "unknown") for i in sub_items)
+                    sub["type_counts"] = dict(sub_type_counts)
+
+        # Add isaweb as special section
+        isaweb_section = {
+            "name": "isaweb",
+            "url": "https://www.oenb.at/isawebstat/",
+            "item_count": len(isaweb_items),
+            "type_counts": dict(Counter(i.get("file_type", "unknown") for i in isaweb_items)),
+            "machine_readable_count": 0,
+            "machine_readable_pct": 0,
+            "subsections": [],
+            "is_isaweb": True,
+        }
+        sitemap_data.insert(0, isaweb_section)
+
+        # Calculate percentages based on TOTAL (with isaweb)
+        total_all = len(enriched)
+        total_without_isaweb = len(non_isaweb_items)
+        for section in sitemap_data:
+            section["item_pct"] = round(section["item_count"] / total_all * 100, 1) if total_all else 0
+            section["item_pct_no_isaweb"] = round(section["item_count"] / total_without_isaweb * 100, 1) if total_without_isaweb and not section.get("is_isaweb") else 0
+
+        # Store totals for template
+        sitemap_total = total_all
+        sitemap_total_no_isaweb = total_without_isaweb
     else:
         sitemap_data = []
+        sitemap_total = 0
+        sitemap_total_no_isaweb = 0
 
     # Render
     html = template.render(
@@ -124,6 +240,8 @@ def generate_claude_dashboard(items: list[dict], output_path: str) -> None:
         file_types=file_types,
         sections=sections,
         sitemap_data=sitemap_data,
+        sitemap_total=sitemap_total,
+        sitemap_total_no_isaweb=sitemap_total_no_isaweb,
     )
 
     # Write output

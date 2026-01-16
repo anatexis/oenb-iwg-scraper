@@ -33,11 +33,11 @@ cd scraper
 scrapy crawl oenb -O "../$OUTPUT_FILE" 2>&1 | tee "../$LOG_FILE"
 cd ..
 
-# Run analysis
+# Generate Claude Dashboard
 echo ""
-echo "Running analysis..."
-python analysis/analyze.py --input "$OUTPUT_FILE"
+echo "Generating Claude Dashboard..."
+python analysis/generate_claude_dashboard.py --input "$OUTPUT_FILE"
 
 echo ""
 echo "=== Complete ==="
-echo "Open output/dashboard.html in your browser"
+echo "Dashboard generated in data/ directory"

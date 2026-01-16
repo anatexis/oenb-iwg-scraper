@@ -10,9 +10,49 @@ from analysis.iwg_scorer import enrich_items_with_scores
 
 
 def load_data(json_path: str) -> list[dict]:
-    """Load scraped data from JSON file."""
+    """Load scraped data from JSON file.
+
+    Handles files with multiple concatenated JSON arrays (from multiple scraper runs).
+    """
     with open(json_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        content = f.read()
+
+    # Try to parse directly first
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # Find the end of the first valid JSON array
+    depth = 0
+    in_string = False
+    escape = False
+    end_pos = 0
+
+    for i, c in enumerate(content):
+        if escape:
+            escape = False
+            continue
+        if c == '\\':
+            escape = True
+            continue
+        if c == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == '[':
+            depth += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                end_pos = i + 1
+                break
+
+    if end_pos > 0:
+        return json.loads(content[:end_pos])
+
+    raise ValueError(f"Could not parse JSON from {json_path}")
 
 
 def generate_usage_snippets(item: dict) -> dict:

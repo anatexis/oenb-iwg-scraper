@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+from parsel import Selector
 
 
 def parse_sitemap_html(html_path: str) -> list[dict]:
@@ -19,17 +19,17 @@ def parse_sitemap_html(html_path: str) -> list[dict]:
     """
     path = Path(html_path)
     html_content = path.read_text(encoding="utf-8")
-    soup = BeautifulSoup(html_content, "html.parser")
+    selector = Selector(text=html_content)
 
     sections = []
 
     # Find all top-level navigation sections
     # These are identified by the class "navigation_link--first"
-    first_level_links = soup.find_all("a", class_="navigation_link--first")
+    first_level_links = selector.css("a.navigation_link--first")
 
     for link in first_level_links:
-        section_name = link.get_text(strip=True)
-        section_url = link.get("href", "")
+        section_name = link.css("::text").get(default="").strip()
+        section_url = link.css("::attr(href)").get(default="")
 
         # Ensure URL is absolute
         if section_url and not section_url.startswith("https://"):
@@ -42,7 +42,7 @@ def parse_sitemap_html(html_path: str) -> list[dict]:
 
         # Find subsections (navigation_link--second) for this section
         # They are typically siblings in the navigation structure
-        subsections = _find_subsections(link, soup)
+        subsections = _find_subsections(link, selector)
         if subsections:
             section_dict["subsections"] = subsections
 
@@ -51,34 +51,33 @@ def parse_sitemap_html(html_path: str) -> list[dict]:
     return sections
 
 
-def _find_subsections(parent_link, soup: BeautifulSoup) -> list[dict]:
+def _find_subsections(parent_link: Selector, full_selector: Selector) -> list[dict]:
     """Find subsections for a given parent section link.
 
     Args:
-        parent_link: The BeautifulSoup tag of the parent section link.
-        soup: The full BeautifulSoup object for context.
+        parent_link: The parsel Selector of the parent section link.
+        full_selector: The full Selector object for context.
 
     Returns:
         List of subsection dicts with name and url.
     """
     subsections = []
 
-    # Get the parent container
-    parent_container = parent_link.find_parent("div", class_="navigation_toggle-container--first")
-    if not parent_container:
-        return subsections
-
-    # Find the navigation item that contains this section
-    nav_item = parent_container.find_parent("li", class_="navigation_item")
+    # Navigate up to find the navigation item container
+    # We need to find the li.navigation_item that contains this link
+    # Since parsel doesn't have find_parent, we use XPath ancestor axis
+    nav_item = parent_link.xpath(
+        "ancestor::li[contains(@class, 'navigation_item')]"
+    )
     if not nav_item:
         return subsections
 
     # Find all second-level links within this navigation item
-    second_level_links = nav_item.find_all("a", class_="navigation_link--second")
+    second_level_links = nav_item.css("a.navigation_link--second")
 
     for link in second_level_links:
-        subsection_name = link.get_text(strip=True)
-        subsection_url = link.get("href", "")
+        subsection_name = link.css("::text").get(default="").strip()
+        subsection_url = link.css("::attr(href)").get(default="")
 
         # Ensure URL is absolute
         if subsection_url and not subsection_url.startswith("https://"):

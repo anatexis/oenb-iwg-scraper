@@ -215,18 +215,20 @@ class OenbSpider(scrapy.Spider):
 
         A substantial table has at least 3 rows and is not a layout table.
         """
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
+        from scrapy.selector import Selector
+        selector = Selector(text=html)
 
         count = 0
-        for table in soup.find_all("table"):
+        layout_classes = ["layout", "nav", "menu", "navigation"]
+
+        for table in selector.css("table"):
             # Skip layout tables
-            table_class = table.get("class", [])
-            if any(c in ["layout", "nav", "menu", "navigation"] for c in table_class):
+            table_classes = table.xpath("@class").get() or ""
+            if any(c in table_classes for c in layout_classes):
                 continue
 
             # Count rows
-            rows = table.find_all("tr")
+            rows = table.css("tr")
             if len(rows) >= 3:
                 count += 1
 

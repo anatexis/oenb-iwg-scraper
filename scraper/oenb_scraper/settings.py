@@ -14,8 +14,8 @@ NEWSPIDER_MODULE = "oenb_scraper.spiders"
 
 # Polite crawling
 ROBOTSTXT_OBEY = True
-DOWNLOAD_DELAY = 1.5  # 1.5 seconds between requests
-CONCURRENT_REQUESTS = 1  # One request at a time
+DOWNLOAD_DELAY = 0.5  # 0.5 seconds between requests
+CONCURRENT_REQUESTS = 4  # 4 concurrent requests
 
 # User agent
 USER_AGENT = "OeNB-IWG-Audit-Bot/1.0 (Open Data compliance check; contact@example.com)"
@@ -31,13 +31,18 @@ COOKIES_ENABLED = False
 
 # Enable AutoThrottle for additional politeness
 AUTOTHROTTLE_ENABLED = True
-AUTOTHROTTLE_START_DELAY = 1
-AUTOTHROTTLE_MAX_DELAY = 10
-AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
+AUTOTHROTTLE_START_DELAY = 0.5
+AUTOTHROTTLE_MAX_DELAY = 5
+AUTOTHROTTLE_TARGET_CONCURRENCY = 4.0
 
 # Item pipelines
 ITEM_PIPELINES = {
     "oenb_scraper.pipelines.DeduplicationPipeline": 100,
     "oenb_scraper.pipelines.FileSizePipeline": 200,
     # "oenb_scraper.pipelines.PdfAnalysisPipeline": 300,  # Disabled for performance, moved to post-processing
+}
+
+# Extensions
+EXTENSIONS = {
+    "oenb_scraper.pipelines.FailedUrlLogger": 100,
 }

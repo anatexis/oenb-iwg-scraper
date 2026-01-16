@@ -165,13 +165,22 @@ class DeduplicationPipeline:
     def __init__(self):
         self.seen_urls = {}  # url -> item reference
 
+    def _normalize_url(self, url: str) -> str:
+        """Remove fragment (#...) from URL for deduplication."""
+        from urllib.parse import urldefrag
+        return urldefrag(url)[0]
+
     def process_item(self, item, spider):
         url = item.get("url")
+        # Normalize URL by removing fragment for deduplication
+        normalized_url = self._normalize_url(url)
+        # Store the clean URL in the item
+        item["url"] = normalized_url
         language = item.get("language", "de")
 
-        if url in self.seen_urls:
+        if normalized_url in self.seen_urls:
             # URL already seen - update the original item's found_in_languages
-            original_item = self.seen_urls[url]
+            original_item = self.seen_urls[normalized_url]
             existing_languages = original_item.get("found_in_languages") or []
             if language not in existing_languages:
                 existing_languages.append(language)
@@ -181,5 +190,5 @@ class DeduplicationPipeline:
 
         # First occurrence - initialize found_in_languages
         item["found_in_languages"] = [language]
-        self.seen_urls[url] = item
+        self.seen_urls[normalized_url] = item
         return item
