@@ -1,5 +1,6 @@
 """SQLite database for storing crawled pages and extracted content."""
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 SCHEMA = """
@@ -62,3 +63,22 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     conn.executescript(SCHEMA)
     conn.commit()
     return conn
+
+
+def start_crawl_run(conn: sqlite3.Connection, seed_url: str, user_agent: str) -> int:
+    """Start a new crawl run. Returns run_id."""
+    cursor = conn.execute(
+        "INSERT INTO crawl_runs (seed_url, started_at, user_agent) VALUES (?, ?, ?)",
+        (seed_url, datetime.utcnow().isoformat() + "Z", user_agent)
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def finish_crawl_run(conn: sqlite3.Connection, run_id: int) -> None:
+    """Mark crawl run as finished."""
+    conn.execute(
+        "UPDATE crawl_runs SET finished_at = ? WHERE id = ?",
+        (datetime.utcnow().isoformat() + "Z", run_id)
+    )
+    conn.commit()
