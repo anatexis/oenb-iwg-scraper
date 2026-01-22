@@ -54,6 +54,51 @@ class OenbSpider(scrapy.Spider):
         "/statistik/standardisierte-tabellen",
     ]
 
+    # Generic link texts that don't make good titles (lowercase)
+    GENERIC_LINK_TEXTS = {
+        "zur navigation", "zum inhalt", "skip to content", "skip to navigation",
+        "zum hauptinhalt", "skip to main content", "navigation überspringen",
+    }
+
+    def _get_meaningful_title(self, link_text: str, url: str) -> str:
+        """Get a meaningful title: use link text if good, otherwise extract from URL.
+
+        Args:
+            link_text: The text of the link (may be generic like "Zur Navigation")
+            url: The URL to extract a title from if link_text is generic
+
+        Returns:
+            A meaningful title string
+        """
+        # If link text is meaningful, use it
+        if link_text and link_text.lower() not in self.GENERIC_LINK_TEXTS:
+            return link_text
+
+        # Extract title from URL path
+        parsed = urlparse(url)
+        path = parsed.path
+
+        # Get the last path segment (filename)
+        segments = [s for s in path.split("/") if s]
+        if not segments:
+            return link_text or ""
+
+        filename = segments[-1]
+
+        # Remove common extensions
+        for ext in [".html", ".htm", ".php", ".aspx"]:
+            if filename.lower().endswith(ext):
+                filename = filename[:-len(ext)]
+                break
+
+        # Replace hyphens/underscores with spaces and clean up
+        title = filename.replace("-", " ").replace("_", " ")
+
+        # Remove multiple spaces
+        title = " ".join(title.split())
+
+        return title if title else link_text or ""
+
     def parse(self, response):
         """Parse a page for downloads and follow links."""
         # Skip non-text responses (images, etc.)
@@ -77,7 +122,7 @@ class OenbSpider(scrapy.Spider):
                 yield self._create_item(
                     "download",
                     url=full_url,
-                    title=link_text,
+                    title=self._get_meaningful_title(link_text, full_url),
                     found_on_page=page_url,
                     page_section=page_section,
                     section_heading=self._find_section_heading(link, response),
@@ -93,7 +138,7 @@ class OenbSpider(scrapy.Spider):
                     callback=self.parse_shiny_app,
                     meta={
                         "shiny_url": full_url,
-                        "title": link_text,
+                        "title": self._get_meaningful_title(link_text, full_url),
                         "found_on_page": page_url,
                         "page_section": page_section,
                         "section_heading": self._find_section_heading(link, response),
@@ -108,7 +153,7 @@ class OenbSpider(scrapy.Spider):
                 yield self._create_item(
                     "standardized_tables",
                     url=full_url,
-                    title=link_text,
+                    title=self._get_meaningful_title(link_text, full_url),
                     found_on_page=page_url,
                     page_section=page_section,
                     section_heading=self._find_section_heading(link, response),
@@ -124,7 +169,7 @@ class OenbSpider(scrapy.Spider):
                 yield self._create_item(
                     "interactive_data",
                     url=full_url,
-                    title=link_text,
+                    title=self._get_meaningful_title(link_text, full_url),
                     found_on_page=page_url,
                     page_section=page_section,
                     section_heading=self._find_section_heading(link, response),
@@ -171,6 +216,17 @@ class OenbSpider(scrapy.Spider):
                 table_count=table_count,
             )
 
+        # Check for embedded data platforms (iframes with data apps)
+        if self._has_embedded_data_platform(response):
+            yield self._create_item(
+                "interactive_data",
+                url=page_url,
+                title=response.css("title::text").get() or "",
+                page_section=page_section,
+                page_date=page_date,
+                language=page_language,
+            )
+
     def parse_shiny_app(self, response):
         """Parse a Shiny app page to extract sources."""
         meta = response.meta
@@ -193,23 +249,26 @@ class OenbSpider(scrapy.Spider):
     def _extract_sources_from_shiny(self, response) -> list[str]:
         """Extract sources from Shiny app HTML.
 
-        Looks for footer links with explicit source prefixes.
+        Combines:
+        1. Footer link text extraction (original approach)
+        2. Improved general source extraction
         """
         sources = []
 
-        # Look for footer links with source info
-        footer_links = response.css(".footer-link::text, .source-link::text, footer a::text").getall()
-        for text in footer_links:
-            text = text.strip()
-            # Extract source name from patterns like "Datenquelle: ECB Data Portal"
-            for prefix in ["Datenquelle:", "Quelle:", "Source:", "Geodaten:", "Data:"]:
-                if prefix in text:
-                    source = text.split(prefix, 1)[1].strip()
-                    if source and source not in sources:
-                        sources.append(source)
-                    break
+        # Strategy 1: Look for footer links with source info (original approach)
+        if hasattr(response, 'css'):
+            footer_links = response.css(".footer-link::text, .source-link::text, footer a::text").getall()
+            for text in footer_links:
+                text = text.strip()
+                # Extract source name from patterns like "Datenquelle: ECB Data Portal"
+                for prefix in ["Datenquelle:", "Quelle:", "Source:", "Geodaten:", "Data:"]:
+                    if prefix in text:
+                        source = text.split(prefix, 1)[1].strip()
+                        if source and source not in sources:
+                            sources.append(source)
+                        break
 
-        # Also try the standard extraction on page text
+        # Strategy 2: Use improved general extraction
         if not sources:
             sources = self._extract_sources(None, response)
 
@@ -238,6 +297,48 @@ class OenbSpider(scrapy.Spider):
                 count += 1
 
         return count
+
+    # Patterns indicating embedded data platforms
+    EMBEDDED_DATA_INDICATORS = [
+        "iFrameContainer",          # Common iframe container ID
+        "transparenzplattform",     # Sparzinsen transparency platform
+        "data-app",                 # Generic data app containers
+        "chart-container",          # Chart containers
+        "highcharts-container",     # Highcharts
+        "plotly",                   # Plotly charts
+    ]
+
+    def _has_embedded_data_platform(self, response) -> bool:
+        """Check if page has an embedded data platform (iframe with data app).
+
+        Detects pages like Sparzinsen that load data via iframes.
+        """
+        if not hasattr(response, 'text'):
+            return False
+
+        html = response.text.lower()
+
+        # Check for iframe container patterns
+        for indicator in self.EMBEDDED_DATA_INDICATORS:
+            if indicator.lower() in html:
+                # Verify it's not just a mention in text but actually a container/element
+                # Look for id="..." or class="..." patterns
+                if f'id="{indicator.lower()}"' in html or f"id='{indicator.lower()}'" in html:
+                    return True
+                if f'class="{indicator.lower()}"' in html or f"class='{indicator.lower()}'" in html:
+                    return True
+                # Also check for partial class matches (class="... indicator ...")
+                if f' {indicator.lower()}' in html or f'"{indicator.lower()} ' in html:
+                    return True
+
+        # Check for iframes pointing to data apps
+        for iframe in response.css("iframe[src]"):
+            src = iframe.attrib.get("src", "").lower()
+            # Check if iframe src looks like a data application
+            if any(pattern in src for pattern in ["chart", "report", "data", "statistik", "dashboard"]):
+                return True
+
+        return False
 
     # Query parameter patterns that indicate downloads
     DOWNLOAD_QUERY_FORMATS = {"csv", "xlsx", "xls", "xml", "json", "pdf", "zip"}
@@ -368,76 +469,158 @@ class OenbSpider(scrapy.Spider):
         "Hauptverband",
     }
 
-    def _extract_sources(self, link, response) -> list[str]:
-        """Extract source attribution near the link.
+    # CSS selectors for source elements (in priority order)
+    SOURCE_CSS_SELECTORS = [
+        # Specific classes from OeNB pages
+        ".footer.quelle",              # isawebstat tables
+        ".highcharts-data-source",     # Highcharts/Shiny apps
+        "td.quelle",                   # Table cells with quelle class
+        ".quelle",                     # Generic quelle class
+        ".source",                     # English variant
+        ".data-source",                # Common pattern
+        # Table footers
+        "tfoot td",                    # Any table footer cell
+        "table caption",               # Table captions sometimes have sources
+        # Figure captions
+        "figcaption",
+        ".chart-source",
+        ".figure-source",
+    ]
 
-        Looks for patterns like:
-        - "Quelle: OeNB, Statistik Austria"
-        - "Source: OeNB"
-        - "Quellen: OeNB; Eurostat"
+    def _extract_sources(self, link, response) -> list[str]:
+        """Extract source attribution from the page.
+
+        Uses a multi-strategy approach:
+        1. CSS selectors for known source elements
+        2. Text pattern matching as fallback
+
+        Args:
+            link: The link element (kept for backwards compatibility, not used)
+            response: The Scrapy response object
+        """
+        # Strategy 1: CSS selectors for structured source elements
+        sources = self._extract_sources_from_selectors(response)
+        if sources:
+            return sources
+
+        # Strategy 2: Text patterns in the entire page
+        sources = self._extract_sources_from_text(response)
+
+        return sources
+
+    def _extract_sources_from_selectors(self, response) -> list[str]:
+        """Extract sources from known CSS selectors."""
+        sources = []
+
+        # Check if response has css method (may not exist in tests)
+        if not hasattr(response, 'css'):
+            return sources
+
+        for selector in self.SOURCE_CSS_SELECTORS:
+            try:
+                elements = response.css(selector)
+                # Handle case where css() returns non-iterable (e.g., in tests)
+                if not hasattr(elements, '__iter__'):
+                    continue
+                for elem in elements:
+                    # Get all text content
+                    if hasattr(elem, 'css'):
+                        text = " ".join(elem.css("::text").getall()).strip()
+                    else:
+                        continue
+                    if not text:
+                        continue
+
+                    # Check if this looks like a source attribution
+                    extracted = self._parse_source_text(text)
+                    for src in extracted:
+                        if src not in sources:
+                            sources.append(src)
+
+                if sources:
+                    return sources  # Return as soon as we find sources
+            except (TypeError, AttributeError):
+                # Skip if selector doesn't work with this response
+                continue
+
+        return sources
+
+    def _extract_sources_from_text(self, response) -> list[str]:
+        """Extract sources using text pattern matching."""
+        sources = []
+
+        if not hasattr(response, 'text'):
+            return sources
+
+        page_text = response.text
+
+        # Patterns to match source attributions (German and English)
+        source_patterns = [
+            r'[Qq]uelle[n]?\s*[:;]\s*([^<\n\.]{2,80})',
+            r'[Ss]ource[s]?\s*[:;]\s*([^<\n\.]{2,80})',
+            r'[Dd]atenquelle[n]?\s*[:;]\s*([^<\n\.]{2,80})',
+            r'[Dd]ata\s+[Ss]ource[s]?\s*[:;]\s*([^<\n\.]{2,80})',
+        ]
+
+        for pattern in source_patterns:
+            matches = re.findall(pattern, page_text)
+            for match in matches:
+                extracted = self._parse_source_text(match)
+                for src in extracted:
+                    if src not in sources:
+                        sources.append(src)
+
+        return sources
+
+    def _parse_source_text(self, text: str) -> list[str]:
+        """Parse source text and extract clean source names.
+
+        Handles text like:
+        - "Quelle: OeNB" -> ["OeNB"]
+        - "OeNB, Statistik Austria" -> ["OeNB", "Statistik Austria"]
+        - "Quelle: EZB" -> ["EZB"]
         """
         sources = []
 
-        # Get surrounding text context
-        # Try parent elements up to 3 levels
-        context_text = ""
-        if link is not None:
-            parent = link
-            for _ in range(3):
-                parent = parent.xpath("..")
-                if parent:
-                    # Get all text in parent element
-                    texts = parent.css("::text").getall()
-                    context_text = " ".join(t.strip() for t in texts if t.strip())
-                    if context_text:
-                        break
+        # Remove "Quelle:", "Source:", etc. prefix
+        text = re.sub(r'^[Qq]uelle[n]?\s*[:;]\s*', '', text)
+        text = re.sub(r'^[Ss]ource[s]?\s*[:;]\s*', '', text)
+        text = re.sub(r'^[Dd]atenquelle[n]?\s*[:;]\s*', '', text)
 
-        # Also check the page for source patterns near figures/tables
-        page_text = response.text if hasattr(response, 'text') else ""
+        # Split by common separators
+        parts = re.split(r'[,;/&]|\bund\b|\band\b', text)
 
-        # Patterns to match source attributions (German and English)
-        # Capture until end of line, sentence, or HTML tag
-        source_patterns = [
-            r'[Qq]uelle[n]?\s*[:;]\s*([A-ZÄÖÜ][^<\n]{2,80})',
-            r'[Ss]ource[s]?\s*[:;]\s*([A-Z][^<\n]{2,80})',
-            r'[Dd]atenquelle[n]?\s*[:;]\s*([A-ZÄÖÜ][^<\n]{2,80})',
-        ]
+        for part in parts:
+            part = part.strip()
+            # Clean up: remove trailing punctuation, whitespace, HTML remnants
+            part = re.sub(r'[\.\)\]\s<>]+$', '', part).strip()
+            part = re.sub(r'^[\(\[<>]+', '', part).strip()
 
-        # Search in context text first, then page text
-        for text in [context_text, page_text[:5000]]:
-            if not text:
+            # Skip if empty or too short/long
+            if not part or len(part) < 2 or len(part) > 50:
                 continue
-            for pattern in source_patterns:
-                matches = re.findall(pattern, text)
-                for match in matches:
-                    # Split by common separators
-                    parts = re.split(r'[,;/&]|\bund\b|\band\b', match)
-                    for part in parts:
-                        part = part.strip()
-                        # Clean up: remove trailing punctuation and whitespace
-                        part = re.sub(r'[\.\)\]\s]+$', '', part).strip()
 
-                        # Skip if empty or too short/long
-                        if not part or len(part) < 3 or len(part) > 50:
-                            continue
+            # Skip common false positives
+            skip_words = {'the', 'die', 'der', 'das', 'ein', 'eine', 'und', 'and', 'or', 'oder'}
+            if part.lower() in skip_words:
+                continue
 
-                        # Skip if starts with lowercase, number, or parenthesis
-                        if re.match(r'^[a-zäöü0-9\(\[]', part):
-                            continue
+            # Skip if looks like a URL or path
+            if '/' in part or 'http' in part.lower():
+                continue
 
-                        # Skip common false positives
-                        if part.lower() in {'the', 'die', 'der', 'das', 'ein', 'eine'}:
-                            continue
+            # Accept if it's a known source
+            is_known = any(known.lower() in part.lower() for known in self.KNOWN_SOURCES)
+            if is_known:
+                sources.append(part)
+                continue
 
-                        # Prefer known sources (exact or partial match)
-                        is_known = any(known.lower() in part.lower() for known in self.KNOWN_SOURCES)
-
-                        if is_known or re.match(r'^[A-ZÄÖÜ][a-zäöüA-ZÄÖÜ\s\-]+$', part):
-                            if part not in sources:
-                                sources.append(part)
-
-                    if sources:
-                        return sources  # Return first match found
+            # Accept if it starts with uppercase and looks like a name/org
+            if re.match(r'^[A-ZÄÖÜ]', part):
+                # Additional validation: should have mostly letters
+                letter_ratio = len(re.findall(r'[a-zA-ZäöüÄÖÜß]', part)) / len(part)
+                if letter_ratio > 0.7:
+                    sources.append(part)
 
         return sources
 
@@ -504,7 +687,8 @@ class OenbSpider(scrapy.Spider):
         item["file_size_bytes"] = None
         item["title"] = kwargs.get("title", "")
         item["found_on_page"] = kwargs.get("found_on_page", kwargs["url"])
-        item["page_section"] = kwargs.get("page_section", "")
+        # Extract section from item URL (not from where found)
+        item["page_section"] = self._extract_section(kwargs["url"])
         item["section_heading"] = kwargs.get("section_heading", "")
         item["page_date"] = kwargs.get("page_date")
         item["scraped_at"] = datetime.utcnow().isoformat() + "Z"

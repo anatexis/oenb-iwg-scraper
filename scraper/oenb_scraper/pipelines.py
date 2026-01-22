@@ -166,9 +166,43 @@ class DeduplicationPipeline:
         self.seen_urls = {}  # url -> item reference
 
     def _normalize_url(self, url: str) -> str:
-        """Remove fragment (#...) from URL for deduplication."""
-        from urllib.parse import urldefrag
-        return urldefrag(url)[0]
+        """Normalize URL for deduplication.
+
+        Removes:
+        - Fragment (#...)
+        - Session IDs (jsessionid, PHPSESSID, etc.)
+        - Sorts query parameters for consistent comparison
+        """
+        from urllib.parse import urldefrag, urlparse, parse_qs, urlencode
+
+        # Remove fragment
+        url = urldefrag(url)[0]
+
+        parsed = urlparse(url)
+
+        # Remove jsessionid from path (e.g., /page;jsessionid=ABC123)
+        path = parsed.path
+        if ';jsessionid=' in path:
+            path = path.split(';jsessionid=')[0]
+        if ';JSESSIONID=' in path:
+            path = path.split(';JSESSIONID=')[0]
+
+        # Parse and filter query parameters
+        query_params = parse_qs(parsed.query, keep_blank_values=False)
+
+        # Remove session-related query parameters
+        session_params = {'jsessionid', 'JSESSIONID', 'PHPSESSID', 'sid', 'session_id'}
+        filtered_params = {k: v for k, v in query_params.items() if k not in session_params}
+
+        # Sort parameters and rebuild query string
+        sorted_query = urlencode(sorted(filtered_params.items()), doseq=True)
+
+        # Rebuild URL
+        normalized = f"{parsed.scheme}://{parsed.netloc}{path}"
+        if sorted_query:
+            normalized += f"?{sorted_query}"
+
+        return normalized
 
     def process_item(self, item, spider):
         url = item.get("url")
@@ -179,16 +213,31 @@ class DeduplicationPipeline:
         language = item.get("language", "de")
 
         if normalized_url in self.seen_urls:
-            # URL already seen - update the original item's found_in_languages
+            # URL already seen - update the original item
             original_item = self.seen_urls[normalized_url]
+
+            # Track link count
+            original_item["link_count"] = original_item.get("link_count", 1) + 1
+
+            # Track languages
             existing_languages = original_item.get("found_in_languages") or []
             if language not in existing_languages:
                 existing_languages.append(language)
                 original_item["found_in_languages"] = existing_languages
-                spider.logger.debug(f"Duplicate URL found in {language}: {url}")
+
+            # Merge sources from duplicate
+            existing_sources = original_item.get("sources") or []
+            new_sources = item.get("sources") or []
+            for src in new_sources:
+                if src not in existing_sources:
+                    existing_sources.append(src)
+            original_item["sources"] = existing_sources
+
+            spider.logger.debug(f"Duplicate URL (count: {original_item['link_count']}): {url}")
             raise scrapy.exceptions.DropItem(f"Duplicate URL: {url}")
 
-        # First occurrence - initialize found_in_languages
+        # First occurrence - initialize
         item["found_in_languages"] = [language]
+        item["link_count"] = 1
         self.seen_urls[normalized_url] = item
         return item

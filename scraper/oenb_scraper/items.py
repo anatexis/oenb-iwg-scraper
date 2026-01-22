@@ -17,6 +17,7 @@ class DownloadItem(scrapy.Item):
     has_tables = scrapy.Field()  # For PDFs: True/False/None
     language = scrapy.Field()  # 'de' or 'en'
     found_in_languages = scrapy.Field()  # ['de'], ['en'], or ['de', 'en'] for duplicates
+    link_count = scrapy.Field()  # How many times this URL was linked from different pages
     sources = scrapy.Field()  # List of sources, e.g. ['OeNB', 'Statistik Austria']
     has_html_tables = scrapy.Field()  # For webpages: True if page has data tables
     table_count = scrapy.Field()  # Number of substantial tables on page

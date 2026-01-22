@@ -328,6 +328,19 @@
             white-space: nowrap;
         }
         th:hover { background: var(--secondary); }
+        th[data-sort]::after {
+            content: ' ⇅';
+            opacity: 0.4;
+            font-size: 0.7rem;
+        }
+        th.sort-asc::after {
+            content: ' ▲';
+            opacity: 1;
+        }
+        th.sort-desc::after {
+            content: ' ▼';
+            opacity: 1;
+        }
         td {
             padding: 0.75rem 1rem;
             border-bottom: 1px solid var(--border);
@@ -372,6 +385,20 @@
             font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
+        }
+        .badge-source {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            background: #e9d8fd;
+            color: #553c9a;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            margin: 1px;
+        }
+        .sources-cell {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .badge-type-catalog {
             background: #d4edda;
@@ -961,10 +988,11 @@
                         <thead>
                             <tr>
                                 <th class="checkbox-cell"><input type="checkbox" id="select-all-review" onchange="toggleSelectAll('review')"></th>
-                                <th>Titel</th>
-                                <th>Typ</th>
-                                <th>Bereich</th>
-                                <th>Score</th>
+                                <th data-sort="title">Titel</th>
+                                <th data-sort="type">Typ</th>
+                                <th data-sort="section">Bereich</th>
+                                <th data-sort="sources">Quellen</th>
+                                <th data-sort="score">Score</th>
                                 <th>Status</th>
                                 <th>Notiz</th>
                             </tr>
@@ -1006,6 +1034,7 @@
                                 <th>Titel</th>
                                 <th>Typ</th>
                                 <th>Bereich</th>
+                                <th>Quellen</th>
                                 <th>Score</th>
                                 <th>Notiz</th>
                                 <th>Aktion</th>
@@ -1042,6 +1071,7 @@
                                 <th>Titel</th>
                                 <th>Typ</th>
                                 <th>Bereich</th>
+                                <th>Quellen</th>
                                 <th>Score</th>
                                 <th>Notiz</th>
                                 <th>Aktion</th>
@@ -1289,11 +1319,16 @@
         const STORAGE_KEY = 'oenb-iwg-review-state';
         let itemStates = {}; // { url: { status: 'pending'|'approved'|'rejected', note: '' } }
 
+        // Sorting state
+        let sortColumn = null;  // null, 'title', 'type', 'section', 'sources', 'score'
+        let sortDirection = 'asc';  // 'asc' or 'desc'
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadState();
             initTabs();
             initFilters();
+            initSorting();
             renderDonutChart();
             updateAllViews();
         });
@@ -1454,6 +1489,72 @@
             document.getElementById('filter-search').addEventListener('input', () => renderReviewTable());
         }
 
+        // Sorting initialization
+        function initSorting() {
+            // Add click handlers to sortable headers
+            document.querySelectorAll('th[data-sort]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.sort;
+                    if (sortColumn === col) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = col;
+                        sortDirection = 'asc';
+                    }
+                    updateSortIndicators();
+                    renderReviewTable();
+                });
+            });
+        }
+
+        // Update sort indicators in headers
+        function updateSortIndicators() {
+            document.querySelectorAll('th[data-sort]').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.dataset.sort === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+        }
+
+        // Sort items by column
+        function sortItems(items) {
+            if (!sortColumn) return items;
+
+            return [...items].sort((a, b) => {
+                let valA, valB;
+
+                switch (sortColumn) {
+                    case 'title':
+                        valA = (a.title || '').toLowerCase();
+                        valB = (b.title || '').toLowerCase();
+                        break;
+                    case 'type':
+                        valA = a.file_type || '';
+                        valB = b.file_type || '';
+                        break;
+                    case 'section':
+                        valA = (a.page_section || '').toLowerCase();
+                        valB = (b.page_section || '').toLowerCase();
+                        break;
+                    case 'sources':
+                        valA = (a.sources || []).join(',').toLowerCase();
+                        valB = (b.sources || []).join(',').toLowerCase();
+                        break;
+                    case 'score':
+                        valA = a.iwg_score || 0;
+                        valB = b.iwg_score || 0;
+                        break;
+                    default:
+                        return 0;
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
         function resetFilters() {
             document.getElementById('filter-confidence').value = '';
             document.getElementById('filter-filetype').value = '';
@@ -1556,7 +1657,8 @@
 
         // Render review table
         function renderReviewTable() {
-            const items = getFilteredPendingItems();
+            const filteredItems = getFilteredPendingItems();
+            const items = sortItems(filteredItems);
             const tbody = document.getElementById('review-table-body');
             const empty = document.getElementById('review-empty');
 
@@ -1571,12 +1673,14 @@
             empty.style.display = 'none';
             tbody.innerHTML = items.map(item => {
                 const state = itemStates[item.url];
+                const sources = (item.sources || []).map(s => `<span class="badge-source">${escapeHtml(s)}</span>`).join(' ');
                 return `
                     <tr data-url="${escapeHtml(item.url)}">
                         <td class="checkbox-cell"><input type="checkbox" class="item-checkbox"></td>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank" title="${escapeHtml(item.title || item.url)}">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
                         <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td class="sources-cell">${sources || '-'}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span> <span class="badge-confidence badge-${item.iwg_confidence}">${item.iwg_confidence}</span></td>
                         <td>
                             <select class="status-select" onchange="updateStatus('${escapeHtml(item.url)}', this.value)">
@@ -1606,11 +1710,13 @@
             empty.style.display = 'none';
             tbody.innerHTML = items.map(item => {
                 const state = itemStates[item.url];
+                const sources = (item.sources || []).map(s => `<span class="badge-source">${escapeHtml(s)}</span>`).join(' ');
                 return `
                     <tr>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
                         <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td class="sources-cell">${sources || '-'}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
                         <td>${escapeHtml(state.note) || '-'}</td>
                         <td><button class="btn btn-secondary btn-sm" onclick="updateStatus('${escapeHtml(item.url)}', 'pending')">Zurück</button></td>
@@ -1634,11 +1740,13 @@
             empty.style.display = 'none';
             tbody.innerHTML = items.map(item => {
                 const state = itemStates[item.url];
+                const sources = (item.sources || []).map(s => `<span class="badge-source">${escapeHtml(s)}</span>`).join(' ');
                 return `
                     <tr>
                         <td class="title-cell"><a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml((item.title || item.url).substring(0, 50))}</a></td>
                         <td><span class="badge-type badge-type-${escapeHtml(item.file_type)}">${escapeHtml(getFileTypeLabel(item.file_type))}</span></td>
                         <td>${escapeHtml((item.page_section || '-').substring(0, 20))}</td>
+                        <td class="sources-cell">${sources || '-'}</td>
                         <td><span class="score score-${item.iwg_confidence}">${item.iwg_score}</span></td>
                         <td>${escapeHtml(state.note) || '-'}</td>
                         <td><button class="btn btn-secondary btn-sm" onclick="updateStatus('${escapeHtml(item.url)}', 'pending')">Zurück</button></td>
@@ -1704,14 +1812,16 @@
                 return;
             }
 
-            const headers = ['URL', 'Titel', 'Dateityp', 'Bereich', 'Größe (Bytes)', 'Sprache', 'IWG Score', 'Konfidenz', 'Fundort', 'Notiz'];
+            const headers = ['URL', 'Titel', 'Dateityp', 'Bereich', 'Quellen', 'Größe (Bytes)', 'Sprache', 'IWG Score', 'Konfidenz', 'Fundort', 'Notiz'];
             const rows = approved.map(item => {
                 const state = itemStates[item.url];
+                const sources = (item.sources || []).join(', ');
                 return [
                     item.url || '',
                     (item.title || '').replace(/;/g, ','),
                     item.file_type || '',
                     item.page_section || '',
+                    sources.replace(/;/g, ','),
                     item.file_size_bytes || '',
                     item.language || 'de',
                     item.iwg_score || '',
@@ -1817,6 +1927,7 @@
                 'Format',
                 'Typ',
                 'Bereich',
+                'Quellen',
                 'Sprache',
                 'Stand',
                 'Fundort',
@@ -1829,6 +1940,7 @@
                 const machineReadable = item.machine_readable === true ? 'Ja' :
                                         item.machine_readable === false ? 'Nein' : '';
                 const typeLabel = typeLabels[item.type] || item.type || '';
+                const sources = (item.sources || []).join(', ');
 
                 return [
                     item.title || '',
@@ -1836,6 +1948,7 @@
                     item.file_type || '',
                     typeLabel,
                     item.page_section || '',
+                    sources,
                     item.language || '',
                     item.page_date || '',
                     item.found_on_page || '',
