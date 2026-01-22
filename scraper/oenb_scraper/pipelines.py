@@ -241,3 +241,46 @@ class DeduplicationPipeline:
         item["link_count"] = 1
         self.seen_urls[normalized_url] = item
         return item
+
+
+from oenb_scraper.database import init_db, start_crawl_run, finish_crawl_run, store_page
+
+
+class SQLitePipeline:
+    """Store pages and bodies in SQLite database."""
+
+    def __init__(self, db_path):
+        self.db_path = Path(db_path)
+        self.conn = None
+        self.run_id = None
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        db_path = crawler.settings.get("SQLITE_DB_PATH", "data/pages.db")
+        return cls(db_path)
+
+    def open_spider(self, spider):
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = init_db(self.db_path)
+        user_agent = spider.settings.get("USER_AGENT", "unknown")
+        self.run_id = start_crawl_run(self.conn, spider.start_urls[0] if spider.start_urls else "", user_agent)
+        spider.logger.info(f"SQLitePipeline: DB at {self.db_path}, run_id={self.run_id}")
+
+    def close_spider(self, spider):
+        if self.conn and self.run_id:
+            finish_crawl_run(self.conn, self.run_id)
+            self.conn.close()
+
+    def process_item(self, item, spider, response=None):
+        """Store page if we have a response."""
+        if response and hasattr(response, 'body'):
+            store_page(
+                self.conn,
+                run_id=self.run_id,
+                url=item.get("url", response.url),
+                final_url=response.url,
+                status_code=response.status,
+                content_type=response.headers.get(b"Content-Type", [b""])[0].decode("utf-8", errors="ignore"),
+                body=response.body,
+            )
+        return item
