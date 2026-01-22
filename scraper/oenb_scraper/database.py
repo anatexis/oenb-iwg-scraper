@@ -1,4 +1,7 @@
 """SQLite database for storing crawled pages and extracted content."""
+import gzip
+import hashlib
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -82,3 +85,44 @@ def finish_crawl_run(conn: sqlite3.Connection, run_id: int) -> None:
         (datetime.utcnow().isoformat() + "Z", run_id)
     )
     conn.commit()
+
+
+def store_page(
+    conn: sqlite3.Connection,
+    run_id: int,
+    url: str,
+    final_url: str,
+    status_code: int,
+    content_type: str,
+    body: bytes,
+    fetch_ms: int = None,
+    etag: str = None,
+    last_modified: str = None,
+    headers: dict = None,
+    fetch_error: str = None,
+) -> int:
+    """Store a page and its compressed body. Returns page_id."""
+    body_hash = hashlib.sha256(body).hexdigest() if body else None
+    headers_json = json.dumps(headers) if headers else None
+
+    cursor = conn.execute(
+        """INSERT INTO pages
+           (crawl_run_id, url, final_url, status_code, content_type,
+            fetched_at, fetch_ms, bytes_downloaded, etag, last_modified,
+            body_hash, headers_json, fetch_error)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (run_id, url, final_url, status_code, content_type,
+         datetime.utcnow().isoformat() + "Z", fetch_ms, len(body) if body else 0,
+         etag, last_modified, body_hash, headers_json, fetch_error)
+    )
+    page_id = cursor.lastrowid
+
+    if body:
+        compressed = gzip.compress(body)
+        conn.execute(
+            "INSERT INTO page_bodies (page_id, storage, compression, body_blob) VALUES (?, ?, ?, ?)",
+            (page_id, "db", "gzip", compressed)
+        )
+
+    conn.commit()
+    return page_id
