@@ -141,8 +141,29 @@ CREATE INDEX IF NOT EXISTS idx_content_section ON page_content(page_section);
 - **Lokal + Cloud**: SQLite für Entwicklung, Parquet für Produktion
 - **Inkrementell**: etag/last_modified für Delta-Crawls
 
-## Nächste Schritte
+## Verwendung
 
-1. SQLite-Pipeline für Scrapy implementieren
-2. Text-Extraktion-Script schreiben
-3. Parquet-Export-Script erstellen
+**Standard-Crawl (ohne RAG):**
+```bash
+# Crawler wie bisher - nur JSON Output
+cd scraper
+scrapy crawl oenb -o ../data/downloads.json
+```
+
+**Mit RAG aktiviert (HTML für Chatbot speichern):**
+```bash
+# 1. In settings.py die SQLitePipeline aktivieren:
+#    "oenb_scraper.pipelines.SQLitePipeline": 400,
+
+# 2. Crawlen (speichert auch in SQLite)
+cd scraper
+scrapy crawl oenb -o ../data/downloads.json
+
+# 3. Text extrahieren
+python -m analysis.extract_text data/pages.db
+
+# 4. Optional: Export für Cloudera
+python -m analysis.export_parquet data/pages.db data/pages.parquet
+```
+
+Die SQLitePipeline ist standardmäßig **deaktiviert** - der Crawler funktioniert wie bisher.
