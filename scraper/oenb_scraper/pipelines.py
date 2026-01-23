@@ -243,21 +243,25 @@ class DeduplicationPipeline:
         return item
 
 
+from scrapy import signals
 from oenb_scraper.database import init_db, start_crawl_run, finish_crawl_run, store_page
 
 
 class SQLitePipeline:
-    """Store pages and bodies in SQLite database."""
+    """Store pages and bodies in SQLite database using response_received signal."""
 
     def __init__(self, db_path):
         self.db_path = Path(db_path)
         self.conn = None
         self.run_id = None
+        self.stored_urls = set()
 
     @classmethod
     def from_crawler(cls, crawler):
         db_path = crawler.settings.get("SQLITE_DB_PATH", "data/pages.db")
-        return cls(db_path)
+        pipeline = cls(db_path)
+        crawler.signals.connect(pipeline.response_received, signal=signals.response_received)
+        return pipeline
 
     def open_spider(self, spider):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -269,18 +273,38 @@ class SQLitePipeline:
     def close_spider(self, spider):
         if self.conn and self.run_id:
             finish_crawl_run(self.conn, self.run_id)
+            spider.logger.info(f"SQLitePipeline: Stored {len(self.stored_urls)} pages")
             self.conn.close()
 
-    def process_item(self, item, spider, response=None):
-        """Store page if we have a response."""
-        if response and hasattr(response, 'body'):
+    def response_received(self, response, request, spider):
+        """Store every HTML response in SQLite."""
+        if not self.conn or not self.run_id:
+            return
+
+        # Only store HTML pages, skip downloads/binaries
+        content_type = response.headers.get(b"Content-Type", b"").decode("utf-8", errors="ignore")
+        if "text/html" not in content_type:
+            return
+
+        # Deduplicate by URL
+        url = response.url
+        if url in self.stored_urls:
+            return
+        self.stored_urls.add(url)
+
+        try:
             store_page(
                 self.conn,
                 run_id=self.run_id,
-                url=item.get("url", response.url),
+                url=request.url,
                 final_url=response.url,
                 status_code=response.status,
-                content_type=response.headers.get(b"Content-Type", [b""])[0].decode("utf-8", errors="ignore"),
+                content_type=content_type,
                 body=response.body,
             )
+        except Exception as e:
+            spider.logger.error(f"SQLitePipeline: Failed to store {url}: {e}")
+
+    def process_item(self, item, spider):
+        """Pass through items unchanged."""
         return item
