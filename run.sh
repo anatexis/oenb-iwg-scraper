@@ -4,6 +4,17 @@ set -e
 echo "=== OeNB IWG Scraper ==="
 echo ""
 
+# Parse arguments
+RAG_MODE=false
+for arg in "$@"; do
+    case $arg in
+        --rag)
+            RAG_MODE=true
+            shift
+            ;;
+    esac
+done
+
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
@@ -19,18 +30,35 @@ pip install -q -r requirements.txt
 
 # Run scraper
 echo ""
-echo "Starting scraper (estimated: 12-15 hours for full crawl)..."
+if [ "$RAG_MODE" = true ]; then
+    echo "Starting scraper WITH RAG (SQLite + HTML storage)..."
+    PIPELINES="oenb_scraper.pipelines.DeduplicationPipeline:100,oenb_scraper.pipelines.FileSizePipeline:200,oenb_scraper.pipelines.SQLitePipeline:400"
+else
+    echo "Starting scraper (standard mode)..."
+    PIPELINES=""
+fi
 echo "Press Ctrl+C to stop early."
 echo ""
 
 TIMESTAMP=$(date +%Y-%m-%d_%H%M)
 OUTPUT_FILE="data/${TIMESTAMP}_downloads.json"
 LOG_FILE="data/${TIMESTAMP}_scraper.log"
+DB_FILE="data/pages.db"
 echo "Output: $OUTPUT_FILE"
 echo "Log: $LOG_FILE"
+if [ "$RAG_MODE" = true ]; then
+    echo "SQLite DB: $DB_FILE"
+fi
 
 cd scraper
-scrapy crawl oenb -O "../$OUTPUT_FILE" 2>&1 | tee "../$LOG_FILE"
+if [ "$RAG_MODE" = true ]; then
+    scrapy crawl oenb -O "../$OUTPUT_FILE" \
+        -s "ITEM_PIPELINES={$PIPELINES}" \
+        -s "SQLITE_DB_PATH=../$DB_FILE" \
+        2>&1 | tee "../$LOG_FILE"
+else
+    scrapy crawl oenb -O "../$OUTPUT_FILE" 2>&1 | tee "../$LOG_FILE"
+fi
 cd ..
 
 # Generate Claude Dashboard
