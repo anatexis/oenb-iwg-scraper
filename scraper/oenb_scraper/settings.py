@@ -40,7 +40,11 @@ ITEM_PIPELINES = {
     "oenb_scraper.pipelines.DeduplicationPipeline": 100,
     "oenb_scraper.pipelines.FileSizePipeline": 200,
     # "oenb_scraper.pipelines.PdfAnalysisPipeline": 300,  # Disabled for performance, moved to post-processing
+    # "oenb_scraper.pipelines.SQLitePipeline": 400,  # Optional: Enable for RAG/Chatbot (stores HTML in SQLite)
 }
+
+# SQLite settings (only used if SQLitePipeline is enabled)
+# SQLITE_DB_PATH = "data/pages.db"
 
 # Extensions
 EXTENSIONS = {
