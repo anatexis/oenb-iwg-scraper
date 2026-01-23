@@ -53,7 +53,7 @@ fi
 cd scraper
 if [ "$RAG_MODE" = true ]; then
     scrapy crawl oenb -O "../$OUTPUT_FILE" \
-        -s "ITEM_PIPELINES={$PIPELINES}" \
+        -s "ITEM_PIPELINES={'oenb_scraper.pipelines.DeduplicationPipeline': 100, 'oenb_scraper.pipelines.FileSizePipeline': 200, 'oenb_scraper.pipelines.SQLitePipeline': 400}" \
         -s "SQLITE_DB_PATH=../$DB_FILE" \
         2>&1 | tee "../$LOG_FILE"
 else
@@ -64,7 +64,7 @@ cd ..
 # Generate Claude Dashboard
 echo ""
 echo "Generating Claude Dashboard..."
-python analysis/generate_claude_dashboard.py --input "$OUTPUT_FILE"
+PYTHONPATH="$PWD" python analysis/generate_claude_dashboard.py --input "$OUTPUT_FILE"
 
 echo ""
 echo "=== Complete ==="
