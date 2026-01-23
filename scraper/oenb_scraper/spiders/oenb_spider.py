@@ -16,6 +16,22 @@ class OenbSpider(scrapy.Spider):
         "https://finanzbildung.oenb.at/",
     ]
 
+    def __init__(self, section=None, *args, **kwargs):
+        """Initialize spider with optional section filter.
+
+        Args:
+            section: URL path prefix to limit crawl (e.g., 'Statistik' or 'Statistik.html')
+        """
+        super().__init__(*args, **kwargs)
+        self.section_filter = None
+        if section:
+            # Normalize: remove .html, ensure starts with /
+            section = section.replace(".html", "").strip("/")
+            self.section_filter = f"/{section}"
+            # Override start_urls to only start from the section
+            self.start_urls = [f"https://www.oenb.at/{section}.html"]
+            self.logger.info(f"Section filter active: only crawling URLs under {self.section_filter}")
+
     # File extensions to capture as downloads
     DOWNLOAD_EXTENSIONS = {
         ".pdf", ".xlsx", ".xls", ".csv", ".xml", ".zip",
@@ -401,12 +417,20 @@ class OenbSpider(scrapy.Spider):
         return any(pattern in url_lower for pattern in self.STANDARDIZED_TABLES_PATTERNS)
 
     def _is_internal_link(self, url: str) -> bool:
-        """Check if URL is internal to oenb.at and uses http(s)."""
+        """Check if URL is internal to oenb.at, uses http(s), and matches section filter."""
         parsed = urlparse(url)
         # Only follow http/https links
         if parsed.scheme and parsed.scheme not in ("http", "https"):
             return False
-        return parsed.netloc in self.allowed_domains or parsed.netloc == ""
+        if parsed.netloc not in self.allowed_domains and parsed.netloc != "":
+            return False
+        # Apply section filter if set
+        if self.section_filter:
+            path = parsed.path.lower()
+            section = self.section_filter.lower()
+            if not path.startswith(section):
+                return False
+        return True
 
     def _extract_language(self, url: str) -> str:
         """Extract language from URL path (de or en)."""

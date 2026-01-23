@@ -6,10 +6,15 @@ echo ""
 
 # Parse arguments
 RAG_MODE=false
+SECTION=""
 for arg in "$@"; do
     case $arg in
         --rag)
             RAG_MODE=true
+            shift
+            ;;
+        --section=*)
+            SECTION="${arg#*=}"
             shift
             ;;
     esac
@@ -49,15 +54,24 @@ echo "Log: $LOG_FILE"
 if [ "$RAG_MODE" = true ]; then
     echo "SQLite DB: $DB_FILE"
 fi
+if [ -n "$SECTION" ]; then
+    echo "Section filter: $SECTION"
+fi
+
+# Build spider arguments
+SPIDER_ARGS=""
+if [ -n "$SECTION" ]; then
+    SPIDER_ARGS="-a section=$SECTION"
+fi
 
 cd scraper
 if [ "$RAG_MODE" = true ]; then
-    scrapy crawl oenb -O "../$OUTPUT_FILE" \
+    scrapy crawl oenb $SPIDER_ARGS -O "../$OUTPUT_FILE" \
         -s 'ITEM_PIPELINES={"oenb_scraper.pipelines.DeduplicationPipeline": 100, "oenb_scraper.pipelines.FileSizePipeline": 200, "oenb_scraper.pipelines.SQLitePipeline": 400}' \
         -s "SQLITE_DB_PATH=../$DB_FILE" \
         2>&1 | tee "../$LOG_FILE"
 else
-    scrapy crawl oenb -O "../$OUTPUT_FILE" 2>&1 | tee "../$LOG_FILE"
+    scrapy crawl oenb $SPIDER_ARGS -O "../$OUTPUT_FILE" 2>&1 | tee "../$LOG_FILE"
 fi
 cd ..
 
