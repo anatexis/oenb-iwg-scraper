@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Dashboard | IWG Reviewer</title>
+    <style>
+        :root {
+            --bg-body: #f7f9fc;
+            --bg-card: #ffffff;
+            --text-main: #1a202c;
+            --text-sub: #718096;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --danger: #ef4444;
+            --success: #10b981;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .filter-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-sub);
+            font-weight: 600;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            color: var(--text-main);
+        }
+
+        .stats-card {
+            background: var(--bg-body);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .stats-count {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Action Buttons in Sidebar */
+        .btn-action {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-body);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .download-fab {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: transform 0.2s;
+            z-index: 100;
+        }
+
+        .download-fab:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Card Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(800px, 1fr));
+            gap: 1.5rem;
+            padding-bottom: 4rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+            transition: box-shadow 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow);
+        }
+
+        /* Card Content */
+        .card-left {
+            flex: 1;
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-type {
+            background: #E0E7FF;
+            color: #4338CA;
+        }
+
+        .badge-score-high {
+            background: #DCFCE7;
+            color: #166534;
+        }
+
+        .badge-score-med {
+            background: #FEF9C3;
+            color: #854D0E;
+        }
+
+        .badge-score-low {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .badge-error {
+            background: #FEE2E2;
+            color: #991B1B;
+            border: 1px solid #ef4444;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0 0 0.5rem 0;
+            line-height: 1.4;
+        }
+
+        .card-title a {
+            color: var(--text-main);
+            text-decoration: none;
+        }
+
+        .card-title a:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
+        .card-url {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 500px;
+            display: block;
+        }
+
+        .card-snippet-container {
+            margin-top: 1rem;
+        }
+
+        .snippet-toggle {
+            font-size: 0.8rem;
+            color: var(--primary);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .snippet-content {
+            display: none;
+            background: #f1f5f9;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            font-family: monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+        }
+
+        /* Select Switch */
+        .select-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 80px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--success);
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px var(--success);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(22px);
+        }
+
+        .select-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-sub);
+            text-transform: uppercase;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="logo"><span>◆</span> Antigravity Dashboard</div>
+
+        <div class="stats-card">
+            <div class="stats-count" id="selected-count">0</div>
+            <div style="font-size: 0.75rem; color: var(--text-sub);">Documents Selected</div>
+        </div>
+
+        <div class="filter-group">
+            <div class="filter-title">Search</div>
+            <input type="text" class="search-input" id="search-input" placeholder="Search title or URL...">
+        </div>
+
+        <div class="filter-group">
+            <div class="filter-title">Filters</div>
+            <label class="checkbox-label">
+                <input type="checkbox" id="filter-high-conf" checked>
+                High Confidence Only (>70)
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="filter-hide-broken">
+                Hide Broken Files ⚠️
+            </label>
+        </div>
+
+        <div class="filter-group" style="margin-top: auto;">
+            <div class="filter-title">Persistence</div>
+            <button class="btn-secondary btn-action" onclick="saveState()">
+                💾 Save Progress
+            </button>
+            <input type="file" id="load-file" style="display: none;" onchange="loadState(this)">
+            <button class="btn-secondary btn-action" onclick="document.getElementById('load-file').click()">
+                📂 Load Progress
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <div class="header">
+            <h1>Candidates Review</h1>
+            <div style="font-size: 0.9rem; color: var(--text-sub);">
+                Loaded <span id="total-items">0</span> documents
+            </div>
+        </div>
+
+        <div class="card-grid" id="card-grid">
+            <!-- Cards injected by JS -->
+        </div>
+    </div>
+
+    <!-- FLOATING ACTION BUTTON -->
+    <button class="download-fab" onclick="exportManifest()">
+        <span>⬇</span> Download Manifest CSV
+    </button>
+
+    <script>
+        // --- DATA INJECTION POINT ---
+        // The Python script will replace the following line with the actual JSON data
+        const DATA = {{ items_json | safe }};
+
+        // State
+        let selectedIds = new Set();
+        let currentData = DATA;
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('total-items').textContent = DATA.length;
+            render();
+
+            // Listeners
+            document.getElementById('search-input').addEventListener('input', render);
+            document.getElementById('filter-high-conf').addEventListener('change', render);
+            document.getElementById('filter-hide-broken').addEventListener('change', render);
+        });
+
+        // Utilities
+        function getScoreBadge(score) {
+            if (score >= 70) return `<span class="badge badge-score-high">${score} High</span>`;
+            if (score >= 40) return `<span class="badge badge-score-med">${score} Med</span>`;
+            return `<span class="badge badge-score-low">${score} Low</span>`;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function toggleSnippet(id, btn) {
+            const el = document.getElementById(`snippet-${id}`);
+            if (el.style.display === 'block') {
+                el.style.display = 'none';
+                btn.textContent = "Show Usage Snippet";
+            } else {
+                el.style.display = 'block';
+                btn.textContent = "Hide Usage Snippet";
+            }
+        }
+
+        function toggleSelection(url) {
+            if (selectedIds.has(url)) {
+                selectedIds.delete(url);
+            } else {
+                selectedIds.add(url);
+            }
+            document.getElementById('selected-count').textContent = selectedIds.size;
+        }
+
+        function render() {
+            const grid = document.getElementById('card-grid');
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const highConf = document.getElementById('filter-high-conf').checked;
+            const hideBroken = document.getElementById('filter-hide-broken').checked;
+
+            grid.innerHTML = '';
+
+            DATA.forEach((item, index) => {
+                // Determine ID (use URL as unique key)
+                const id = index;
+                const isSelected = selectedIds.has(item.url);
+                const isBroken = item.scan_result && item.scan_result.status === 'error';
+
+                // Initial Filters
+                if (highConf && item.iwg_score < 70) return;
+                if (hideBroken && isBroken) return;
+                if (search && !(
+                    (item.title && item.title.toLowerCase().includes(search)) ||
+                    item.url.toLowerCase().includes(search)
+                )) return;
+
+                // Build Card
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                let errorBadge = '';
+                if (isBroken) {
+                    errorBadge = `<span class="badge badge-error" title="${escapeHtml(item.scan_result.message)}">⚠️ Scan Failed</span>`;
+                }
+
+                card.innerHTML = `
+                    <div class="card-left">
+                        <div class="card-meta">
+                            ${getScoreBadge(item.iwg_score)}
+                            <span class="badge badge-type">${item.file_type.toUpperCase()}</span>
+                            ${errorBadge}
+                        </div>
+                        <h3 class="card-title">
+                            <a href="${item.url}" target="_blank">${escapeHtml(item.title) || 'Untitled Document'}</a>
+                        </h3>
+                        <a href="${item.url}" target="_blank" class="card-url">${item.url}</a>
+                        
+                        <div class="card-snippet-container">
+                             <button class="snippet-toggle" onclick="toggleSnippet(${id}, this)">Show Usage Snippet</button>
+                             <div id="snippet-${id}" class="snippet-content">
+                                ${escapeHtml(item.snippets?.python || "# No snippet available")}
+                             </div>
+                        </div>
+                    </div>
+                    
+                    <div class="select-wrapper">
+                        <label class="switch">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelection('${item.url}')">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="select-label">Export</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // --- EXPORT & PERSISTENCE ---
+
+        function exportManifest() {
+            if (selectedIds.size === 0) {
+                alert("Please select at least one document to export.");
+                return;
+            }
+
+            const header = ["title", "url", "file_type", "iwg_score"];
+            const rows = [header];
+
+            DATA.forEach(item => {
+                if (selectedIds.has(item.url)) {
+                    rows.push([
+                        `"${(item.title || "").replace(/"/g, '""')}"`,
+                        `"${item.url}"`,
+                        item.file_type,
+                        item.iwg_score
+                    ]);
+                }
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "iwg_export_manifest.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function saveState() {
+            const state = {
+                timestamp: new Date().toISOString(),
+                selectedIds: Array.from(selectedIds)
+            };
+            const jsonStr = JSON.stringify(state);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "iwg_reviewer_progress.json";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function loadState(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const state = JSON.parse(e.target.result);
+                    if (state.selectedIds && Array.isArray(state.selectedIds)) {
+                        selectedIds = new Set(state.selectedIds);
+                        document.getElementById('selected-count').textContent = selectedIds.size;
+                        render();
+                        alert(`Loaded progress! ${selectedIds.size} items selected.`);
+                    }
+                } catch (err) {
+                    alert("Error loading file: " + err);
+                }
+            };
+            reader.readAsText(file);
+            input.value = ''; // reset
+        }
+
+    </script>
+</body>
+
+</html>
