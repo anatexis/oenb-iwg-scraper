@@ -1,4 +1,8 @@
-"""Extract clean text from HTML pages."""
+"""Extract clean text from HTML pages.
+
+NOTE: After re-extraction, check if analysis/chart_synonyms.json needs
+updating with new chart titles. That file is NOT auto-generated.
+"""
 import sqlite3
 import gzip
 from datetime import datetime

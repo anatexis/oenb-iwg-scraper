@@ -1,0 +1,99 @@
+{
+  "_info": "ACHTUNG: Diese Datei wird NICHT automatisch beim Crawlen erstellt! Nach einem Re-Crawl mit neuen Chart-Seiten muss sie manuell ergaenzt werden. Neue Charts finden mit: SELECT DISTINCT title FROM page_content WHERE title LIKE 'DATA Chart%' AND text_content LIKE '%, 2024:%' ORDER BY title",
+  "_usage": "Synonym-Dictionary fuer isawebstat Chart-Seiten. Wird von der Agentic Search in den Notebooks verwendet um Chart-Daten besser zu finden. Keys sind Patterns die im Chart-Titel vorkommen, Values sind zusaetzliche Suchbegriffe.",
+
+  "Leitzins": ["EZB", "Europäische Zentralbank", "Hauptrefinanzierungssatz", "Zinspolitik", "key interest rate", "ECB", "Zinsentscheid", "Zinssenkung", "Zinserhöhung"],
+  "Key interest rates": ["ECB", "European Central Bank", "main refinancing rate", "interest rate decision"],
+
+  "Drei-Monats-Zins": ["EURIBOR", "Interbankenzins", "Geldmarktzins", "3-Monats-Zins", "kurzfristige Zinsen"],
+  "Three-month interest": ["EURIBOR", "interbank rate", "money market rate", "short-term interest"],
+
+  "Kredit": ["Darlehen", "Finanzierung", "Bankkredit", "Kreditvergabe", "loan", "lending"],
+  "Loan": ["credit", "lending", "financing", "bank loan"],
+  "Wohnbaukredit": ["Hypothek", "Immobilienkredit", "Wohnkredit", "Baufinanzierung", "mortgage", "housing loan"],
+
+  "Geldmenge M3": ["Geldmengenwachstum", "Liquidität", "Zentralbankgeld", "Geldpolitik", "monetary aggregate"],
+  "Monetary aggregate M3": ["money supply", "liquidity", "monetary policy"],
+
+  "Verbraucherpreis": ["Inflation", "Teuerung", "VPI", "HVPI", "Preissteigerung", "consumer price", "CPI", "HICP"],
+  "Consumer price": ["inflation", "CPI", "HICP", "price increase"],
+
+  "Wechselkurs": ["EUR/USD", "Euro-Dollar", "Devisenkurs", "Aufwertung", "Abwertung", "exchange rate"],
+  "exchange rate": ["EUR/USD", "euro dollar", "appreciation", "depreciation", "FX"],
+
+  "Bruttoinlandsprodukt": ["BIP", "Wirtschaftswachstum", "Konjunktur", "GDP", "Rezession"],
+  "GDP": ["gross domestic product", "economic growth", "recession"],
+  "Nominell": ["nominales BIP", "nominal GDP"],
+
+  "Zahlungsbilanz": ["Leistungsbilanz", "Kapitalbilanz", "Handelsbilanz", "Außenhandel", "balance of payments", "current account"],
+  "Balance of Payments": ["current account", "capital account", "trade balance", "external trade"],
+
+  "Direktinvestition": ["FDI", "Auslandsinvestition", "ausländische Investition", "foreign direct investment", "Beteiligung"],
+  "direct investment": ["FDI", "foreign investment", "cross-border investment"],
+
+  "Bundesbudget": ["Staatshaushalt", "Staatsausgaben", "Budgetdefizit", "Fiskalpolitik", "federal budget"],
+  "Federal budget": ["government spending", "budget deficit", "fiscal policy"],
+
+  "Staatsschuld": ["Finanzschuld", "öffentliche Verschuldung", "Maastricht", "Schuldenquote", "government debt"],
+  "Federal debt": ["government debt", "public debt", "Maastricht", "debt ratio"],
+  "Federal government debt": ["government debt", "public debt", "sovereign debt"],
+  "Finanzschuld des Bundes": ["Staatsschuld", "öffentliche Schulden", "Bundesschuld"],
+
+  "Fiskalindikator": ["Maastricht", "Defizit", "Schuldenquote", "Budgetsaldo", "fiscal indicator"],
+  "Fiscal indicators": ["Maastricht", "deficit", "debt ratio", "budget balance"],
+
+  "Staatsquoten": ["Abgabenquote", "Steuerquote", "Ausgabenquote", "Einnahmenquote"],
+  "Expenditure and revenue ratios": ["tax ratio", "spending ratio", "revenue ratio"],
+
+  "Beschäftigte": ["Arbeitsmarkt", "Bankbeschäftigte", "Personal", "Arbeitnehmer", "employment"],
+  "employment": ["labor market", "workforce", "staff", "employees"],
+
+  "Lohnstückkosten": ["Arbeitskosten", "Produktivität", "Wettbewerbsfähigkeit", "unit labor cost"],
+  "Unit labor costs": ["labor costs", "productivity", "competitiveness"],
+
+  "Wettbewerbsfähigkeit": ["Preisliche Kompetitivität", "Außenhandel", "Exportfähigkeit", "competitiveness"],
+  "competitiveness": ["price competitiveness", "trade", "export capability"],
+
+  "Goldreserven": ["Goldbestand", "Notenbankreserven", "gold reserves"],
+  "Gold reserves": ["gold holdings", "central bank reserves"],
+
+  "Währungsreserven": ["Devisenreserven", "Notenbankreserven", "foreign exchange reserves", "reserve assets"],
+  "Reserve assets": ["foreign exchange reserves", "central bank reserves"],
+
+  "Renditen langfristiger": ["Anleiherendite", "Staatsanleihe", "Benchmark", "10-Jahres-Rendite", "bond yield"],
+  "Long-term government bond": ["bond yield", "sovereign bond", "benchmark", "10-year yield"],
+
+  "Rohstoffpreis": ["Ölpreis", "Energiepreis", "Rohöl", "commodity price", "Brent"],
+  "commodity prices": ["oil price", "energy price", "crude oil", "Brent"],
+
+  "Baupreis": ["Baukosten", "Immobilienpreis", "Wohnungsmarkt", "construction cost"],
+  "Construction": ["building cost", "real estate", "housing market"],
+
+  "Reiseverkehr": ["Tourismus", "Nächtigungen", "Übernachtungen", "Fremdenverkehr", "tourism"],
+  "Tourism": ["overnight stays", "travel", "tourist arrivals"],
+  "Nächtigungen": ["Tourismus", "Übernachtungen", "Fremdenverkehr"],
+
+  "Börsennotiert": ["Aktien", "Aktienkurs", "Wertpapier", "Kapitalmarkt", "listed shares", "stock market"],
+  "Listed shares": ["stocks", "equities", "capital market", "stock exchange"],
+
+  "Verzinsliche Wertpapiere": ["Anleihen", "Bonds", "Schuldverschreibung", "debt securities"],
+  "Debt securities": ["bonds", "fixed income", "government bonds"],
+
+  "Investmentzertifikate": ["Investmentfonds", "Fondsanteile", "Kapitalanlage", "investment fund"],
+  "Investment fund": ["mutual fund", "fund shares", "asset management"],
+
+  "Versicherungsstatistik": ["Versicherung", "Prämien", "Versicherungsfall", "insurance"],
+  "Insurance": ["premiums", "claims", "insurance corporations"],
+
+  "Pensionskassen": ["Pension", "Altersvorsorge", "Pensionsfonds", "pension fund"],
+  "Pension funds": ["retirement", "pension", "old-age provision"],
+
+  "Dienstleistungsverkehr": ["Dienstleistungshandel", "Dienstleistungsexport", "services trade"],
+  "Services": ["services trade", "service exports", "service imports"],
+
+  "Vertrauensindikator": ["Konjunkturindikator", "Stimmungsindikator", "ifo", "PMI", "sentiment indicator"],
+  "Economic sentiment": ["confidence indicator", "business climate", "PMI"],
+
+  "Einlagen": ["Spareinlagen", "Guthaben", "Bankeinlagen", "Bankguthaben", "deposits", "savings"],
+  "Deposits": ["savings", "bank deposits", "bank accounts"]
+}
