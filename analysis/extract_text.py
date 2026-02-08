@@ -8,7 +8,10 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import re
 
-from analysis.extract_chart_data import extract_chart_data, chart_data_to_text
+try:
+    from analysis.extract_chart_data import extract_chart_data, chart_data_to_text
+except ModuleNotFoundError:
+    from extract_chart_data import extract_chart_data, chart_data_to_text
 
 
 def extract_text_from_html(html: str) -> dict:

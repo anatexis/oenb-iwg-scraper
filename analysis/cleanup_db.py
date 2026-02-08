@@ -55,14 +55,14 @@ def dedup_pages(db_path: Path) -> int:
 
         delete_ids = [pid for pid in page_ids if pid != keep_id]
 
-        # Update the kept page's URL to the normalized form
-        conn.execute("UPDATE pages SET url = ? WHERE id = ?", (norm_url, keep_id))
-
-        # Delete duplicates (CASCADE deletes page_bodies and page_content)
+        # Delete duplicates first (CASCADE deletes page_bodies and page_content)
         conn.execute(
             f"DELETE FROM pages WHERE id IN ({','.join('?' * len(delete_ids))})",
             delete_ids
         )
+
+        # Then update the kept page's URL to the normalized form
+        conn.execute("UPDATE pages SET url = ? WHERE id = ?", (norm_url, keep_id))
         removed += len(delete_ids)
 
     conn.commit()
