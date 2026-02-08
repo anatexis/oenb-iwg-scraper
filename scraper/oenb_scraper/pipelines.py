@@ -276,6 +276,32 @@ class SQLitePipeline:
             spider.logger.info(f"SQLitePipeline: Stored {len(self.stored_urls)} pages")
             self.conn.close()
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Normalize URL: remove session IDs, fragments, sort query params."""
+        from urllib.parse import urldefrag, urlparse, parse_qs, urlencode
+
+        url = urldefrag(url)[0]
+        parsed = urlparse(url)
+
+        # Remove jsessionid from path
+        path = parsed.path
+        for token in (';jsessionid=', ';JSESSIONID='):
+            if token in path:
+                path = path.split(token)[0]
+
+        # Filter and sort query parameters
+        session_params = {'jsessionid', 'JSESSIONID', 'PHPSESSID', 'sid', 'session_id'}
+        query_params = parse_qs(parsed.query, keep_blank_values=False)
+        filtered = {k: v for k, v in query_params.items()
+                    if k not in session_params}
+        sorted_query = urlencode(sorted(filtered.items()), doseq=True)
+
+        normalized = f"{parsed.scheme}://{parsed.netloc}{path}"
+        if sorted_query:
+            normalized += f"?{sorted_query}"
+        return normalized
+
     def response_received(self, response, request, spider):
         """Store every HTML response in SQLite."""
         if not self.conn or not self.run_id:
@@ -286,24 +312,24 @@ class SQLitePipeline:
         if "text/html" not in content_type:
             return
 
-        # Deduplicate by URL
-        url = response.url
-        if url in self.stored_urls:
+        # Normalize URL before dedup check and storage
+        normalized_url = self._normalize_url(response.url)
+        if normalized_url in self.stored_urls:
             return
-        self.stored_urls.add(url)
+        self.stored_urls.add(normalized_url)
 
         try:
             store_page(
                 self.conn,
                 run_id=self.run_id,
-                url=request.url,
-                final_url=response.url,
+                url=normalized_url,           # Store normalized URL
+                final_url=response.url,       # Keep original as final_url
                 status_code=response.status,
                 content_type=content_type,
                 body=response.body,
             )
         except Exception as e:
-            spider.logger.error(f"SQLitePipeline: Failed to store {url}: {e}")
+            spider.logger.error(f"SQLitePipeline: Failed to store {normalized_url}: {e}")
 
     def process_item(self, item, spider):
         """Pass through items unchanged."""
