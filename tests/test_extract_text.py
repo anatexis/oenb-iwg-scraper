@@ -53,3 +53,30 @@ def test_batch_extraction():
         assert "Content here" in row[1]
         assert row[2] == "test-v1"
         conn.close()
+
+
+def test_extract_text_includes_chart_data():
+    """Test that isawebstat chart data is included in extracted text."""
+    from analysis.extract_text import extract_text_from_html
+
+    html = '''
+    <html><head><title>DATA Chart - Leitzinssätze</title></head>
+    <body>
+    <script>
+    $scope.data = [
+        {
+            key: "Euroraum",
+            color: "#607EA9",
+            values: [{"x": "0", "label": "2024", "value": 3.15}, {"x": "1", "label": "2025", "value": 2.15}]
+        }
+    ];
+    </script>
+    <div>Chart wählen Leitzinssätze</div>
+    </body></html>
+    '''
+
+    result = extract_text_from_html(html)
+
+    assert "Leitzinssätze" in result["text"]
+    assert "Euroraum" in result["text"]
+    assert "2025: 2.15" in result["text"]

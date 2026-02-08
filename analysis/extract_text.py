@@ -8,13 +8,22 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import re
 
+from analysis.extract_chart_data import extract_chart_data, chart_data_to_text
+
 
 def extract_text_from_html(html: str) -> dict:
     """Extract title and clean text from HTML.
 
+    For isawebstat chart pages, also extracts embedded time-series data
+    from <script> tags before they are removed.
+
     Returns:
         {"title": str, "text": str}
     """
+    # Extract chart data BEFORE stripping scripts
+    chart_data = extract_chart_data(html)
+    chart_text = chart_data_to_text(chart_data) if chart_data else ""
+
     soup = BeautifulSoup(html, "html.parser")
 
     title = ""
@@ -26,6 +35,10 @@ def extract_text_from_html(html: str) -> dict:
 
     text = soup.get_text(separator=" ", strip=True)
     text = re.sub(r"\s+", " ", text).strip()
+
+    # Append chart data if present
+    if chart_text:
+        text = f"{text}\n\n{chart_text}"
 
     return {"title": title, "text": text}
 
