@@ -1,6 +1,7 @@
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -80,4 +81,67 @@ def test_sqlite_pipeline_normalizes_session_ids():
 
         url = conn.execute("SELECT url FROM pages").fetchone()[0]
         assert "jsessionid" not in url, f"Session ID not removed from stored URL: {url}"
+        conn.close()
+
+
+def test_sqlite_pipeline_skips_unchanged_pages():
+    """Test that SQLitePipeline skips pages with unchanged body_hash."""
+    from oenb_scraper.pipelines import SQLitePipeline
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "pages.db"
+        pipeline = SQLitePipeline(db_path)
+
+        spider = MagicMock()
+        spider.name = "oenb"
+        spider.start_urls = ["https://www.oenb.at/"]
+        spider.settings = MagicMock()
+        spider.settings.get = MagicMock(return_value="TestBot/1.0")
+        pipeline.open_spider(spider)
+
+        url = "https://www.oenb.at/test.html"
+        body = b"<html><body>Same content</body></html>"
+
+        # First request: should store
+        response1 = MagicMock()
+        response1.url = url
+        response1.status = 200
+        response1.headers = {b"Content-Type": b"text/html"}
+        response1.body = body
+        request1 = MagicMock()
+        request1.url = url
+        pipeline.response_received(response1, request1, spider)
+
+        # Record the fetched_at from first insert
+        conn = sqlite3.connect(db_path)
+        first_fetched_at = conn.execute("SELECT fetched_at FROM pages WHERE url = ?", (url,)).fetchone()[0]
+        conn.close()
+
+        # Small delay to ensure fetched_at timestamp changes
+        time.sleep(0.05)
+
+        # Simulate a second crawl run by clearing stored_urls
+        # (as if spider restarted) but keeping the DB
+        pipeline.stored_urls.clear()
+
+        # Second request with same body: should update fetched_at but not create duplicate
+        response2 = MagicMock()
+        response2.url = url
+        response2.status = 200
+        response2.headers = {b"Content-Type": b"text/html"}
+        response2.body = body
+        request2 = MagicMock()
+        request2.url = url
+        pipeline.response_received(response2, request2, spider)
+
+        pipeline.close_spider(spider)
+
+        conn = sqlite3.connect(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0]
+        assert count == 1, f"Expected 1 page but got {count} (should upsert, not duplicate)"
+
+        second_fetched_at = conn.execute("SELECT fetched_at FROM pages WHERE url = ?", (url,)).fetchone()[0]
+        assert second_fetched_at > first_fetched_at, (
+            f"fetched_at should be updated on re-crawl: first={first_fetched_at}, second={second_fetched_at}"
+        )
         conn.close()

@@ -101,10 +101,49 @@ def store_page(
     headers: dict = None,
     fetch_error: str = None,
 ) -> int:
-    """Store a page and its compressed body. Returns page_id."""
+    """Store a page and its compressed body. Upserts on URL conflict. Returns page_id."""
     body_hash = hashlib.sha256(body).hexdigest() if body else None
     headers_json = json.dumps(headers) if headers else None
+    now = datetime.utcnow().isoformat() + "Z"
 
+    # Check if page already exists with same body_hash
+    existing = conn.execute(
+        "SELECT id, body_hash FROM pages WHERE url = ?", (url,)
+    ).fetchone()
+
+    if existing:
+        page_id, old_hash = existing
+        if old_hash == body_hash:
+            # Content unchanged - just update fetched_at
+            conn.execute(
+                "UPDATE pages SET fetched_at = ?, crawl_run_id = ? WHERE id = ?",
+                (now, run_id, page_id)
+            )
+            conn.commit()
+            return page_id
+        else:
+            # Content changed - update everything
+            conn.execute(
+                """UPDATE pages SET crawl_run_id=?, final_url=?, status_code=?,
+                   content_type=?, fetched_at=?, fetch_ms=?, bytes_downloaded=?,
+                   etag=?, last_modified=?, body_hash=?, headers_json=?, fetch_error=?
+                   WHERE id = ?""",
+                (run_id, final_url, status_code, content_type, now, fetch_ms,
+                 len(body) if body else 0, etag, last_modified, body_hash,
+                 headers_json, fetch_error, page_id)
+            )
+            if body:
+                compressed = gzip.compress(body)
+                conn.execute(
+                    "INSERT OR REPLACE INTO page_bodies (page_id, storage, compression, body_blob) VALUES (?, ?, ?, ?)",
+                    (page_id, "db", "gzip", compressed)
+                )
+            # Invalidate extracted content so it gets re-extracted
+            conn.execute("DELETE FROM page_content WHERE page_id = ?", (page_id,))
+            conn.commit()
+            return page_id
+
+    # New page
     cursor = conn.execute(
         """INSERT INTO pages
            (crawl_run_id, url, final_url, status_code, content_type,
@@ -112,7 +151,7 @@ def store_page(
             body_hash, headers_json, fetch_error)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (run_id, url, final_url, status_code, content_type,
-         datetime.utcnow().isoformat() + "Z", fetch_ms, len(body) if body else 0,
+         now, fetch_ms, len(body) if body else 0,
          etag, last_modified, body_hash, headers_json, fetch_error)
     )
     page_id = cursor.lastrowid
