@@ -7,9 +7,22 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Data files (regenerated)
+# Data files (regenerated, too large for git)
 data/*.json
+data/*.db
+data/*.db.zip
+data/*.log
+data/*.html
+data/*.html.gz
+data/*.parquet
+data/chromadb/
 output/
+
+# Zip archives
+*.zip
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
 
 # IDE
 .idea/
