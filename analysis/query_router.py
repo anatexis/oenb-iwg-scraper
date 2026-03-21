@@ -165,7 +165,7 @@ FALLBACK_RULES = [
 
 QUERY_DOMAIN_HINTS = {
     "commodity_prices": ["inflation", "inflationsdaten", "verbraucherpreisindex", "vpi"],
-    "interest_rates": ["sparzinsen", "kreditzinsen", "wohnbaukreditzinsen", "basiszinssatz", "referenzzinssatz"],
+    "interest_rates": ["sparzinsen", "kreditzinsen", "wohnbaukreditzinsen", "basiszinssatz", "referenzzinssatz", "kredit"],
     "real_estate": ["wohnimmobilienpreisindex", "immobilienpreise"],
     "financial_soundness": [
         "oesterreichischen banken",
@@ -737,6 +737,8 @@ def _infer_candidate_strategy(*, intent: str, query_intent: str, domains: list[s
         return "sql_first"
     if len(domains) > 1:
         return "hybrid"
+    if has_statistical_domain and query_intent == "fact_lookup":
+        return "sql_first"
     if record_types & STRUCTURED_RECORD_TYPES and not record_types & TEXT_RECORD_TYPES and intent == "fact_lookup":
         return "sql_first"
     if domains == ["financial_education"] and intent == "advice_request":

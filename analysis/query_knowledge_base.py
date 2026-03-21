@@ -13,6 +13,10 @@ from analysis.text_stopwords import is_stopword
 QUERY_SYNONYMS = {
     "leitzins": ["base rate", "reference rate", "base and reference rates", "basiszinssatz", "referenzzinssatz", "leitzinssätze", "key interest rates", "policy rates"],
     "leitzinsen": ["base rate", "reference rate", "base and reference rates", "basiszinssatz", "referenzzinssatz", "leitzinssätze", "key interest rates", "policy rates"],
+    "kreditzinsen": ["kreditzinssätze", "lending rates", "lending rate"],
+    "kreditzins": ["kreditzinssätze", "lending rates", "lending rate"],
+    "sparzinsen": ["einlagenzinssätze", "deposit rates", "deposit rate", "einlagenzinsen"],
+    "einlagenzinsen": ["einlagenzinssätze", "deposit rates", "deposit rate", "sparzinsen"],
     "rppi": ["residential property price index", "wohnimmobilienpreisindex"],
     "fsi": ["financial soundness indicators", "tier 1 capital", "indikatoren zur stabilität des finanzsektors"],
 }
