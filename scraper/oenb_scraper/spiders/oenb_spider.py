@@ -43,6 +43,19 @@ class OenbSpider(scrapy.Spider):
         "https://www.oenb.at/",
         "https://www.oenb.at/Service/Sitemap.html",
         "https://finanzbildung.oenb.at/",
+        # Section landing pages — ensures discovery of content beyond /dam/ and /Termine/
+        "https://www.oenb.at/Ueber-Uns.html",
+        "https://www.oenb.at/Ueber-Uns/Geldmuseum.html",
+        "https://www.oenb.at/Ueber-Uns/Kunst-und-Kultur.html",
+        "https://www.oenb.at/Ueber-Uns/unternehmensgeschichte.html",
+        "https://www.oenb.at/Ueber-Uns/finanzbildung.html",
+        "https://www.oenb.at/der-euro.html",
+        "https://www.oenb.at/der-euro/bargeld.html",
+        "https://www.oenb.at/der-euro/bargeld/Bargeldumlauf.html",
+        "https://www.oenb.at/Geldpolitik.html",
+        "https://www.oenb.at/Statistik.html",
+        "https://www.oenb.at/finanzmarkt.html",
+        "https://www.oenb.at/Service.html",
     ]
 
     def __init__(
