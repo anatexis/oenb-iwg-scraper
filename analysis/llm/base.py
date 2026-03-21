@@ -12,7 +12,7 @@ class LLMConfig:
     base_url: str
     model: str
     api_key: str | None = None
-    timeout_seconds: float = 30.0
+    timeout_seconds: float = 120.0
 
 
 class LLMProvider(ABC):
@@ -25,7 +25,7 @@ class LLMProvider(ABC):
         base_url: str,
         model: str,
         api_key: str | None = None,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 120.0,
     ) -> None:
         self.provider_name = provider_name
         self.base_url = base_url.rstrip("/")
