@@ -201,6 +201,23 @@ class TestDeduplicationPipeline:
         with pytest.raises(scrapy.exceptions.DropItem):
             pipeline.process_item(item2, spider)
 
+    def test_duplicate_url_drop_is_logged_at_debug(self):
+        from oenb_scraper.pipelines import DeduplicationPipeline
+        import scrapy.exceptions
+
+        spider = MagicMock()
+        pipeline = DeduplicationPipeline()
+
+        item1 = {"url": "https://example.com/doc.pdf", "language": "de"}
+        item2 = {"url": "https://example.com/doc.pdf", "language": "de"}
+
+        pipeline.process_item(item1, spider)
+
+        with pytest.raises(scrapy.exceptions.DropItem) as exc_info:
+            pipeline.process_item(item2, spider)
+
+        assert exc_info.value.log_level == "DEBUG"
+
     def test_duplicate_in_different_language_updates_original(self):
         from oenb_scraper.pipelines import DeduplicationPipeline
         import scrapy.exceptions
