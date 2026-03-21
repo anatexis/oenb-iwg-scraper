@@ -99,6 +99,7 @@ def answer_chatbot_question(
                 primary_path=primary_path,
                 secondary_path=secondary_path,
                 knowledge_base_cache=knowledge_base_cache,
+                routing=routing,
             )
             subanswers.append(
                 {
@@ -132,6 +133,7 @@ def answer_chatbot_question(
         primary_path=primary_path,
         secondary_path=secondary_path,
         knowledge_base_cache=knowledge_base_cache,
+        routing=routing,
     )
     if include_debug:
         response["hits"] = hits
@@ -150,6 +152,7 @@ def _build_answer_payload_for_hit(
     primary_path: Path | None,
     secondary_path: Path | None,
     knowledge_base_cache=None,
+    routing: dict | None = None,
 ) -> dict:
     parent = _load_parent_record(
         hit["parent_id"],
@@ -178,7 +181,11 @@ def _build_answer_payload_for_hit(
     ]
     release_text = f" Nächste Veröffentlichung: {release_dates[0]}." if release_dates else ""
 
-    answer = f"{parent.get('title', hit.get('title', 'Treffer'))}.{latest_text}{release_text}".strip()
+    title = parent.get("title", hit.get("title", "Treffer"))
+    query_intent = (routing or {}).get("query_intent")
+    intent_suffix = _intent_aware_suffix(query, query_intent, title, hit)
+
+    answer = f"{title}.{latest_text}{release_text}{intent_suffix}".strip()
     source_urls = _core_citation_urls(parent, hit)
 
     return {
@@ -399,6 +406,33 @@ def _format_latest_observation_text(query: str, title: str, latest: dict, latest
         return " In der aktuell materialisierten Wissensbasis ist in dieser Rohstofftabelle kein expliziter Gold-Wert als letzte Beobachtung verfügbar."
     if latest.get("value") and latest.get("period"):
         return f" Stand Wissensbasis: {latest['period']} = {latest['value']}{unit}."
+    return ""
+
+
+def _intent_aware_suffix(query: str, query_intent: str | None, title: str, hit: dict) -> str:
+    if query_intent == "trend_over_time":
+        return " Die verlinkte Tabelle enthält die vollständige Zeitreihe zur historischen Entwicklung."
+    if query_intent == "comparison":
+        chunk_text = hit.get("text") or ""
+        sources_snippet = _extract_sources_snippet(chunk_text)
+        if sources_snippet:
+            return f" Quellen und Berechnungsgrundlage: {sources_snippet}"
+        return " Details zur Berechnungsgrundlage finden Sie auf der verlinkten Seite."
+    lowered = query.lower()
+    if any(w in lowered for w in ("wo ", "where ", "lagerort", "standort")):
+        return " Diese Tabelle enthält Bestandsdaten. Für weiterführende Informationen siehe die verlinkte Seite."
+    return ""
+
+
+def _extract_sources_snippet(chunk_text: str) -> str:
+    for marker in ("Sources:", "Quellen:"):
+        if marker not in chunk_text:
+            continue
+        after = chunk_text.split(marker, 1)[1].strip()
+        for cutoff in ("Supporting pages:", "Unterstützende Seiten:"):
+            if cutoff in after:
+                after = after.split(cutoff, 1)[0].strip()
+        return after[:200].rstrip(". ") + "." if after else ""
     return ""
 
 
