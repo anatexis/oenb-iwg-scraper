@@ -251,5 +251,193 @@
     "current_observation": "unknown",
     "primary_failure_layer": "unknown",
     "notes": "Zweiter expliziter OOD-Fall fuer Sportwissen. Er verhindert, dass fachfremde Fragen ueber schwache Retrieval-Treffer eine OeNB-Antwort provozieren."
+  },
+
+  {
+    "id": "open_ended_024",
+    "query": "What is the current deposit facility rate?",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["monetary_policy"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Englische Query. Testet ob der Router englische Fachbegriffe erkennt. deposit facility ist in FALLBACK_RULES, sollte also funktionieren."
+  },
+  {
+    "id": "open_ended_025",
+    "query": "interest rates Austria",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["interest_rates"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "Kurze englische Query. Wird faelschlicherweise als OOD abgelehnt weil keine deutschen Keywords matchen. Zeigt Schwaeche bei Nicht-Deutsch-Queries."
+  },
+  {
+    "id": "open_ended_026",
+    "query": "EZB Zinsentscheid",
+    "intent_family": "structured_release_lookup",
+    "expected_domains": ["monetary_policy"],
+    "expected_strategy": "hybrid",
+    "expected_answer_mode": "release_lookup",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "EZB (Europaeische Zentralbank) ist Kern-OeNB-Thema. Wird faelschlicherweise als OOD abgelehnt weil EZB nicht in FALLBACK_RULES oder IN_SCOPE_HINTS steht."
+  },
+  {
+    "id": "open_ended_027",
+    "query": "Geldmenge M3 Oesterreich",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["monetary_policy"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "Geldmenge M3 ist eine Kern-Statistik der OeNB/EZB. Wird faelschlicherweise als OOD abgelehnt. Zeigt, dass der Router nur handgepflegte Begriffe kennt."
+  },
+  {
+    "id": "open_ended_028",
+    "query": "Mindestreserve aktueller Satz",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["monetary_policy"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "Mindestreserve ist ein geldpolitisches Instrument. OOD-Ablehnung ist falsch — die OeNB publiziert Mindestreservedaten."
+  },
+  {
+    "id": "open_ended_029",
+    "query": "TARGET2 Saldo Oesterreich",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "hybrid",
+    "expected_answer_mode": "structured_value_plus_explanatory_context",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "TARGET2-Salden sind ein vieldiskutiertes Zahlungsverkehrsthema. Die OeNB publiziert diese Daten. OOD-Ablehnung ist falsch."
+  },
+  {
+    "id": "open_ended_030",
+    "query": "Einlagensicherung Oesterreich wie hoch",
+    "intent_family": "website_explanation",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "rag_first",
+    "expected_answer_mode": "explanation_with_navigation",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "Einlagensicherung ist ein Kernthema der OeNB-Website (eigener Menue-Punkt unter Finanzmarkt). OOD-Ablehnung ist falsch."
+  },
+  {
+    "id": "open_ended_031",
+    "query": "Zahlungsverkehr in Oesterreich",
+    "intent_family": "website_explanation",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "rag_first",
+    "expected_answer_mode": "topic_overview_from_website",
+    "current_observation": "rejected_as_ood",
+    "primary_failure_layer": "routing",
+    "notes": "Zahlungsverkehr ist eine eigene OeNB-Hauptsektion. OOD-Ablehnung ist komplett falsch."
+  },
+  {
+    "id": "open_ended_032",
+    "query": "Wie wirkt sich die Geldpolitik auf Immobilienpreise aus?",
+    "intent_family": "cross_domain_explanation",
+    "expected_domains": ["monetary_policy", "real_estate"],
+    "expected_strategy": "hybrid",
+    "expected_answer_mode": "cross_domain_explanation",
+    "current_observation": "routes_only_to_real_estate",
+    "primary_failure_layer": "routing",
+    "notes": "Cross-Domain-Frage die Geldpolitik UND Immobilien betrifft. Router erkennt nur real_estate, nicht die monetary_policy-Komponente."
+  },
+  {
+    "id": "open_ended_033",
+    "query": "inflation",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["commodity_prices"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "routes_correctly_but_topic_overview",
+    "primary_failure_layer": "unknown",
+    "notes": "Ein-Wort-Query. Domain korrekt (commodity_prices), aber intent ist topic_overview statt fact_lookup. Akzeptabel fuer kurze Queries."
+  },
+  {
+    "id": "open_ended_034",
+    "query": "Wann wird der Leitzins wieder gesenkt?",
+    "intent_family": "structured_release_lookup",
+    "expected_domains": ["monetary_policy"],
+    "expected_strategy": "hybrid",
+    "expected_answer_mode": "release_lookup_or_defensive",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Zukunftsgerichtete Frage. Der Bot sollte entweder den naechsten EZB-Zinsentscheid-Termin zeigen oder defensiv antworten dass er keine Prognosen macht."
+  },
+  {
+    "id": "open_ended_035",
+    "query": "Kreditvergabe an Unternehmen in Oesterreich",
+    "intent_family": "structured_rate_lookup",
+    "expected_domains": ["interest_rates"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "current_structured_rate",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Testet ob Kreditvergabe korrekt zu interest_rates routet (Kreditstatistiken) und nicht zu financial_soundness."
+  },
+  {
+    "id": "open_ended_036",
+    "query": "OeNB Jahresabschluss 2024",
+    "intent_family": "website_document_lookup",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "rag_first",
+    "expected_answer_mode": "document_navigation",
+    "current_observation": "not_found_but_routes_correctly",
+    "primary_failure_layer": "coverage",
+    "notes": "Der Jahresabschluss ist eine Publikation auf der Website. Routing zu website_general/rag_first ist korrekt, Content fehlt aber im Crawl."
+  },
+  {
+    "id": "open_ended_037",
+    "query": "Wie hoch ist die Inflation in Deutschland?",
+    "intent_family": "out_of_scope_adjacent",
+    "expected_domains": ["commodity_prices"],
+    "expected_strategy": "sql_first",
+    "expected_answer_mode": "defensive_or_redirect",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Grenzfall: Inflation ist OeNB-Thema, aber die Frage betrifft Deutschland. Der Bot sollte entweder Euroraum-Daten zeigen oder auf Destatis verweisen."
+  },
+  {
+    "id": "open_ended_038",
+    "query": "Ich moechte ein Konto eroeffnen",
+    "intent_family": "out_of_scope_consumer",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "reject_or_clarify",
+    "expected_answer_mode": "defensive_clarification",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "OOD: Die OeNB ist keine Geschaeftsbank und bietet keine Konten fuer Privatpersonen an. Klar ausserhalb des Scope."
+  },
+  {
+    "id": "open_ended_039",
+    "query": "Wie sicher ist mein Geld auf der Bank?",
+    "intent_family": "website_explanation",
+    "expected_domains": ["website_general"],
+    "expected_strategy": "rag_first",
+    "expected_answer_mode": "explanation_with_navigation",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Grenzfall: Klingt nach Privatkundenberatung, ist aber ein Einlagensicherungs-Thema. Der Bot sollte auf die OeNB-Einlagensicherungsseite verweisen, nicht ablehnen."
+  },
+  {
+    "id": "open_ended_040",
+    "query": "Leitzinsen und Sparzinsen im Vergleich",
+    "intent_family": "structured_comparison",
+    "expected_domains": ["monetary_policy", "interest_rates"],
+    "expected_strategy": "hybrid",
+    "expected_answer_mode": "structured_comparison",
+    "current_observation": "unknown",
+    "primary_failure_layer": "unknown",
+    "notes": "Multi-Domain-Vergleich: Leitzins (monetary_policy) vs. Sparzinsen (interest_rates). Testet ob der Router beide Domains erkennt und hybrid waehlt."
   }
 ]
