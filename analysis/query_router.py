@@ -548,7 +548,14 @@ def _route_from_candidates(query: str, candidates: list[dict], fallback_route: d
     if not candidates:
         return fallback_route
 
-    if _is_clearly_out_of_scope(query) and not _has_strong_in_scope_candidate(query, candidates):
+    fallback_has_statistical_domain = any(
+        domain in STATISTICAL_DOMAINS for domain in fallback_route.get("domains", [])
+    )
+    if (
+        _is_clearly_out_of_scope(query)
+        and not _has_strong_in_scope_candidate(query, candidates)
+        and not fallback_has_statistical_domain
+    ):
         return _normalize_route(
             {
                 **DEFAULT_ROUTE,
@@ -1116,15 +1123,17 @@ def _is_clearly_out_of_scope(query: str) -> bool:
 
 
 def _should_prefer_fallback_route(query_intent: str, selected_domains: list[str], fallback_route: dict) -> bool:
-    if query_intent not in {"release_lookup", "navigation", "explanation", "trend_over_time"}:
-        return False
     fallback_statistical_domains = [domain for domain in fallback_route.get("domains", []) if domain in STATISTICAL_DOMAINS]
     if not fallback_statistical_domains:
         return False
     selected_statistical_domains = [domain for domain in selected_domains if domain in STATISTICAL_DOMAINS]
+    # If the fallback has a specific statistical domain from hint-matching
+    # but no candidate covers that domain, prefer the fallback.
     if not selected_statistical_domains:
         return True
-    return not set(selected_statistical_domains).intersection(fallback_statistical_domains)
+    if not set(selected_statistical_domains).intersection(fallback_statistical_domains):
+        return True
+    return False
 
 
 def _wants_multiple_topics(query: str) -> bool:
