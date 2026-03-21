@@ -24,11 +24,16 @@ QUERY_SYNONYMS = {
 PREFERRED_QUERY_PHRASES = {
     "leitzins": ["key interest rates", "policy rates"],
     "leitzinsen": ["key interest rates", "policy rates"],
+    "kreditzinsen": ["lending rates"],
+    "kreditzins": ["lending rates"],
+    "kredit": ["lending rates"],
+    "sparzinsen": ["deposit rates"],
+    "einlagenzinsen": ["deposit rates"],
 }
 
 ROUTED_DOMAIN_TERMS = {
     "monetary_policy": ["einlagenfazilität", "deposit facility", "policy rates", "key interest rates", "leitzins"],
-    "interest_rates": ["key interest rates", "policy rates", "base and reference rates"],
+    "interest_rates": ["key interest rates", "policy rates", "base and reference rates", "lending rates", "deposit rates"],
     "commodity_prices": ["gold", "gold price", "goldpreis", "commodity prices"],
     "real_estate": ["residential property price index", "rppi", "property prices", "immobilienpreise"],
     "financial_soundness": ["financial soundness indicators", "fsi", "tier 1 capital"],
