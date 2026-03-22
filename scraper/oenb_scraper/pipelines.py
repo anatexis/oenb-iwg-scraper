@@ -285,6 +285,11 @@ class SQLitePipeline:
         if not self.conn or not self.run_id:
             return
 
+        # Skip /dam/ URLs — binary assets (PDFs, ZIPs) that may arrive via redirects
+        # even when the spider didn't explicitly request them.
+        if "/dam/" in urlparse(response.url).path:
+            return
+
         content_type = response.headers.get(b"Content-Type", b"").decode("utf-8", errors="ignore")
         normalized_url = normalize_url(response.url)
         materialized_report_dataset = False

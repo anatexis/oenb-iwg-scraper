@@ -1,4 +1,5 @@
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin, urlparse, parse_qs
@@ -43,7 +44,7 @@ class OenbSpider(scrapy.Spider):
         "https://www.oenb.at/",
         "https://www.oenb.at/Service/Sitemap.html",
         "https://finanzbildung.oenb.at/",
-        # Section landing pages — ensures discovery of content beyond /dam/ and /Termine/
+        # Section landing pages
         "https://www.oenb.at/Ueber-Uns.html",
         "https://www.oenb.at/Ueber-Uns/Geldmuseum.html",
         "https://www.oenb.at/Ueber-Uns/Kunst-und-Kultur.html",
@@ -56,6 +57,18 @@ class OenbSpider(scrapy.Spider):
         "https://www.oenb.at/Statistik.html",
         "https://www.oenb.at/finanzmarkt.html",
         "https://www.oenb.at/Service.html",
+        # Sections missing from previous crawls
+        "https://www.oenb.at/Bargeld.html",
+        "https://www.oenb.at/Zahlungsverkehr.html",
+        "https://www.oenb.at/Presse.html",
+        "https://www.oenb.at/Forschung.html",
+        "https://www.oenb.at/FAQ.html",
+        "https://www.oenb.at/Barrierefreiheit.html",
+        # English entry points
+        "https://www.oenb.at/en/Statistics.html",
+        "https://www.oenb.at/en/Statistics/Standardized-Tables.html",
+        "https://www.oenb.at/en/Monetary-Policy.html",
+        "https://www.oenb.at/en/Financial-Market.html",
     ]
 
     def __init__(
@@ -67,6 +80,7 @@ class OenbSpider(scrapy.Spider):
         frontier_limit=100,
         frontier_kinds=None,
         isaweb_focus=False,
+        skip_isaweb=False,
         *args,
         **kwargs,
     ):
@@ -74,6 +88,7 @@ class OenbSpider(scrapy.Spider):
 
         Args:
             section: URL path prefix to limit crawl (e.g., 'Statistik' or 'Statistik.html')
+            skip_isaweb: Skip ISAweb resolution during crawl (for faster HTML-only discovery)
         """
         super().__init__(*args, **kwargs)
         self.crawl_scope = CrawlScope(
@@ -87,6 +102,8 @@ class OenbSpider(scrapy.Spider):
         self.frontier_limit = int(frontier_limit)
         self.frontier_kinds = self._parse_frontier_kinds(frontier_kinds)
         self.isaweb_focus = self._as_bool(isaweb_focus)
+        self.skip_isaweb = self._as_bool(skip_isaweb)
+        self._known_urls: set[str] = set()
         if section:
             # Normalize: remove .html, ensure starts with /
             section = section.replace(".html", "").strip("/")
@@ -95,6 +112,8 @@ class OenbSpider(scrapy.Spider):
             self.logger.info(f"Section filter active: only crawling URLs under {self.section_filter}")
 
     def start_requests(self):
+        self._load_known_urls()
+
         frontier_urls = self._get_frontier_seed_urls()
         if frontier_urls:
             for url in frontier_urls:
@@ -107,6 +126,20 @@ class OenbSpider(scrapy.Spider):
 
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
+
+    def _load_known_urls(self) -> None:
+        """Load already-crawled URLs from the DB to skip re-fetching them."""
+        db_path = getattr(self, "settings", {}).get("SQLITE_DB_PATH") if hasattr(self, "settings") else None
+        if not db_path or not Path(db_path).exists():
+            return
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.execute("SELECT url FROM pages")
+            self._known_urls = {row[0] for row in cursor}
+            conn.close()
+            self.logger.info(f"Loaded {len(self._known_urls)} known URLs — will skip re-fetching")
+        except Exception as e:
+            self.logger.warning(f"Could not load known URLs: {e}")
 
     def _section_start_urls(self, section: str) -> list[str]:
         normalized = section.lower()
@@ -211,19 +244,20 @@ class OenbSpider(scrapy.Spider):
         seen_isaweb_urls: set[str] = set()
         normalized_page_url = normalize_url(page_url)
 
-        resolved_dataset_request = resolve_dataset_request_from_html(
-            page_url,
-            response.text,
-            fallback_lang=page_language,
-        )
-        if resolved_dataset_request is not None:
-            yield scrapy.Request(resolved_dataset_request.content_url, callback=self.parse_isaweb_content)
-            yield scrapy.Request(resolved_dataset_request.data_url, callback=self.parse_isaweb_data)
-            yield scrapy.Request(resolved_dataset_request.meta_url, callback=self.parse_isaweb_meta)
-        else:
-            page_hierarchy_reference = extract_hierarchy_reference(page_url, fallback_lang=page_language)
-            if page_hierarchy_reference is not None:
-                yield scrapy.Request(page_hierarchy_reference.content_url, callback=self.parse_isaweb_content)
+        if not self.skip_isaweb:
+            resolved_dataset_request = resolve_dataset_request_from_html(
+                page_url,
+                response.text,
+                fallback_lang=page_language,
+            )
+            if resolved_dataset_request is not None:
+                yield scrapy.Request(resolved_dataset_request.content_url, callback=self.parse_isaweb_content)
+                yield scrapy.Request(resolved_dataset_request.data_url, callback=self.parse_isaweb_data)
+                yield scrapy.Request(resolved_dataset_request.meta_url, callback=self.parse_isaweb_meta)
+            else:
+                page_hierarchy_reference = extract_hierarchy_reference(page_url, fallback_lang=page_language)
+                if page_hierarchy_reference is not None:
+                    yield scrapy.Request(page_hierarchy_reference.content_url, callback=self.parse_isaweb_content)
 
         # Find all links on the page
         for link in response.css("a[href]"):
@@ -315,15 +349,16 @@ class OenbSpider(scrapy.Spider):
                     reporting_institutions=page_source_metadata.reporting_institutions,
                     source_extraction_method=page_source_metadata.source_extraction_method,
                 )
-                dataset_request = extract_dataset_request(full_url, fallback_lang=page_language)
-                if dataset_request is not None:
-                    yield scrapy.Request(dataset_request.content_url, callback=self.parse_isaweb_content)
-                    yield scrapy.Request(dataset_request.data_url, callback=self.parse_isaweb_data)
-                    yield scrapy.Request(dataset_request.meta_url, callback=self.parse_isaweb_meta)
-                else:
-                    hierarchy_reference = extract_hierarchy_reference(full_url, fallback_lang=page_language)
-                    if hierarchy_reference is not None:
-                        yield scrapy.Request(hierarchy_reference.content_url, callback=self.parse_isaweb_content)
+                if not self.skip_isaweb:
+                    dataset_request = extract_dataset_request(full_url, fallback_lang=page_language)
+                    if dataset_request is not None:
+                        yield scrapy.Request(dataset_request.content_url, callback=self.parse_isaweb_content)
+                        yield scrapy.Request(dataset_request.data_url, callback=self.parse_isaweb_data)
+                        yield scrapy.Request(dataset_request.meta_url, callback=self.parse_isaweb_meta)
+                    else:
+                        hierarchy_reference = extract_hierarchy_reference(full_url, fallback_lang=page_language)
+                        if hierarchy_reference is not None:
+                            yield scrapy.Request(hierarchy_reference.content_url, callback=self.parse_isaweb_content)
                 # Also follow the link to crawl the data portal
                 if self._should_follow_interactive_data_link(full_url):
                     yield response.follow(full_url, callback=self.parse)
@@ -332,21 +367,22 @@ class OenbSpider(scrapy.Spider):
             elif self._should_follow_link(full_url):
                 yield response.follow(full_url, callback=self.parse)
 
-        for embedded_url in extract_isaweb_urls_from_html(page_url, response.text):
-            normalized_embedded_url = normalize_url(embedded_url)
-            if normalized_embedded_url in seen_isaweb_urls or normalized_embedded_url == normalized_page_url:
-                continue
-            seen_isaweb_urls.add(normalized_embedded_url)
+        if not self.skip_isaweb:
+            for embedded_url in extract_isaweb_urls_from_html(page_url, response.text):
+                normalized_embedded_url = normalize_url(embedded_url)
+                if normalized_embedded_url in seen_isaweb_urls or normalized_embedded_url == normalized_page_url:
+                    continue
+                seen_isaweb_urls.add(normalized_embedded_url)
 
-            dataset_request = extract_dataset_request(embedded_url, fallback_lang=page_language)
-            if dataset_request is not None:
-                yield scrapy.Request(dataset_request.content_url, callback=self.parse_isaweb_content)
-                yield scrapy.Request(dataset_request.data_url, callback=self.parse_isaweb_data)
-                yield scrapy.Request(dataset_request.meta_url, callback=self.parse_isaweb_meta)
-            else:
-                hierarchy_reference = extract_hierarchy_reference(embedded_url, fallback_lang=page_language)
-                if hierarchy_reference is not None:
-                    yield scrapy.Request(hierarchy_reference.content_url, callback=self.parse_isaweb_content)
+                dataset_request = extract_dataset_request(embedded_url, fallback_lang=page_language)
+                if dataset_request is not None:
+                    yield scrapy.Request(dataset_request.content_url, callback=self.parse_isaweb_content)
+                    yield scrapy.Request(dataset_request.data_url, callback=self.parse_isaweb_data)
+                    yield scrapy.Request(dataset_request.meta_url, callback=self.parse_isaweb_meta)
+                else:
+                    hierarchy_reference = extract_hierarchy_reference(embedded_url, fallback_lang=page_language)
+                    if hierarchy_reference is not None:
+                        yield scrapy.Request(hierarchy_reference.content_url, callback=self.parse_isaweb_content)
 
             if self._is_interactive_data(embedded_url):
                 yield self._create_item(
@@ -624,8 +660,14 @@ class OenbSpider(scrapy.Spider):
             return False
         return True
 
+    # /dam/ URLs are binary assets (PDFs, images) served without file extensions.
+    # Following them wastes crawl time and pollutes the DB with non-HTML content.
+    DAM_PATH_PREFIX = "/dam/"
+
     def _should_follow_link(self, url: str) -> bool:
         if not self._is_internal_link(url):
+            return False
+        if self.DAM_PATH_PREFIX in urlparse(url).path:
             return False
         if not self.isaweb_focus:
             return True
@@ -815,12 +857,14 @@ class OenbSpider(scrapy.Spider):
             return False
         if not self._is_internal_link(url):
             return False
+        # Fetch small structured data files (CSV, XLSX, JSON, etc.)
         if classified.subtype in self.FETCHABLE_ASSET_SUBTYPES:
             return True
-        if classified.subtype not in self.DEEP_DOCUMENT_SUBTYPES:
-            return False
-        context = " ".join(part for part in [title, page_section, section_heading, url] if part).lower()
-        return any(keyword in context for keyword in self.DOCUMENT_PRIORITY_KEYWORDS)
+        # Don't fetch large binary documents (PDF, DOCX, PPTX).
+        # The download *item* is still yielded so we know where they're linked,
+        # but downloading thousands of multi-MB PDFs is too slow and they
+        # rarely produce useful chatbot chunks.
+        return False
 
     # Type-specific defaults for item creation
     _ITEM_TYPE_DEFAULTS = {

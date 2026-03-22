@@ -181,7 +181,8 @@ def test_parse_emits_request_for_internal_machine_readable_asset():
     assert "https://www.oenb.at/downloads/leitzins.csv" in request_urls
 
 
-def test_parse_emits_request_for_relevant_statistics_pdf():
+def test_parse_records_pdf_as_item_but_does_not_fetch():
+    """PDFs are recorded as download items (so we know they exist) but not fetched."""
     spider = OenbSpider()
     html = """
     <html>
@@ -201,8 +202,12 @@ def test_parse_emits_request_for_relevant_statistics_pdf():
 
     outputs = list(spider.parse(response))
     request_urls = [output.url for output in outputs if isinstance(output, Request)]
+    item_urls = [output["url"] for output in outputs if not isinstance(output, Request) and "url" in output]
 
-    assert "https://www.oenb.at/dam/jcr:note/explanatory-note.pdf" in request_urls
+    # PDF is catalogued as a download item
+    assert "https://www.oenb.at/dam/jcr:note/explanatory-note.pdf" in item_urls
+    # But NOT fetched via HTTP request
+    assert "https://www.oenb.at/dam/jcr:note/explanatory-note.pdf" not in request_urls
 
 
 def test_parse_does_not_emit_request_for_generic_homepage_pdf():
