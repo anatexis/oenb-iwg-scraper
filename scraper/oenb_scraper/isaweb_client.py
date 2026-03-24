@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import time
 
 import requests
@@ -14,6 +15,10 @@ from oenb_scraper.isaweb_service import (
     parse_content_positions,
     parse_data_response,
     parse_meta_response,
+)
+from oenb_scraper.isaweb_store import (
+    store_isaweb_data_response,
+    store_isaweb_meta_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +82,40 @@ class IsawebClient:
             ],
             key=lambda x: x["hierid"],
         )
+
+    def fetch_and_store_position(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        hierid: int,
+        pos: str,
+        lang: str = "DE",
+    ) -> dict:
+        """Fetch metadata + data for one position and persist to DB."""
+        result: dict = {"meta_stored": False, "data_stored": 0}
+
+        # Fetch and store metadata
+        meta_url = build_meta_url(hierid=hierid, lang=lang, pos=[pos])
+        meta_content = self._get(meta_url)
+        if meta_content is not None:
+            try:
+                store_isaweb_meta_response(conn, response_url=meta_url, xml_text=meta_content)
+                result["meta_stored"] = True
+            except Exception:
+                logger.warning("Failed to store meta for hierid=%d pos=%s", hierid, pos, exc_info=True)
+
+        # Fetch and store data
+        data_url = build_data_url(hierid=hierid, lang=lang, pos=[pos])
+        data_content = self._get(data_url)
+        if data_content is not None:
+            try:
+                result["data_stored"] = store_isaweb_data_response(
+                    conn, response_url=data_url, xml_text=data_content
+                )
+            except Exception:
+                logger.warning("Failed to store data for hierid=%d pos=%s", hierid, pos, exc_info=True)
+
+        return result
 
     @property
     def stats(self) -> dict:

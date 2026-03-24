@@ -78,3 +78,64 @@ def test_client_discover_leaf_hierids_from_tree():
         {"hierid": 13, "label": "Geldmengenaggregate"},
         {"hierid": 22, "label": "Geldmarktzinssätze"},
     ]
+
+
+def test_client_fetch_and_store_position(tmp_path):
+    """Client fetches meta + data for a position and persists to DB."""
+    from oenb_scraper.database import init_db
+
+    meta_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <metainfo>
+      <header><prepared>2026-03-24T10:00:00Z</prepared>
+        <sender id="AT2"><name>OeNB</name></sender>
+      </header>
+      <meta>
+        <title>Einlagefazilität</title>
+        <region>-</region><unit>%</unit><comment>ECB rate</comment>
+        <classification>-</classification><breaks>-</breaks>
+        <frequency>Monate</frequency>
+        <data_available><data>Jan. 99 - Feb. 26</data></data_available>
+        <last_update>2026-03-01</last_update><source>OeNB</source><lag>-</lag>
+        <releases></releases>
+      </meta>
+    </metainfo>
+    """
+
+    data_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <OeNBData>
+      <data>
+        <dataSet pos="VDBESEFAZSPIFAGAB" posTitle="Einlagefazilität" freq="M" unitMult="0" unitText="%">
+          <values>
+            <obs value="2.50" periode="2025-01"/>
+            <obs value="2.75" periode="2025-02"/>
+          </values>
+        </dataSet>
+      </data>
+    </OeNBData>
+    """
+
+    def mock_get_side_effect(url, **kwargs):
+        resp = MagicMock()
+        resp.status_code = 200
+        if "/meta?" in url:
+            resp.content = meta_xml.encode("utf-8")
+        else:
+            resp.content = data_xml.encode("utf-8")
+        return resp
+
+    conn = init_db(tmp_path / "crawler.db")
+    client = IsawebClient(rate_limit=0)
+
+    with patch.object(client._session, "get", side_effect=mock_get_side_effect):
+        result = client.fetch_and_store_position(
+            conn=conn, hierid=22, pos="VDBESEFAZSPIFAGAB", lang="DE"
+        )
+
+    assert result["meta_stored"] is True
+    assert result["data_stored"] == 1
+
+    # Verify DB
+    meta_row = conn.execute("SELECT title FROM isaweb_metadata WHERE pos = 'VDBESEFAZSPIFAGAB'").fetchone()
+    obs_count = conn.execute("SELECT COUNT(*) AS c FROM isaweb_observations").fetchone()["c"]
+    assert meta_row["title"] == "Einlagefazilität"
+    assert obs_count == 2
