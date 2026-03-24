@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_RATE_LIMIT = 0.5
 TREE_REPORT_ID = "1.1"  # Any valid report ID returns the full hierarchy tree
+EXTRA_LEAF_HIERIDS = [11]  # Leaf hierids not present in the navigation tree
 
 
 class IsawebClient:
@@ -117,6 +118,81 @@ class IsawebClient:
 
         return result
 
+    def fetch_all(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        lang: str = "DE",
+    ) -> dict:
+        """Discover all hierarchies and fetch all positions."""
+        report = {
+            "hierarchies_discovered": 0,
+            "positions_discovered": 0,
+            "positions_fetched": 0,
+            "errors": 0,
+        }
+
+        # Step 1: Get the hierarchy tree
+        leaves = self.fetch_hierarchy_tree(lang=lang)
+        leaf_hierids = [leaf["hierid"] for leaf in leaves]
+
+        # Add known extra leaves not in tree
+        for extra in EXTRA_LEAF_HIERIDS:
+            if extra not in leaf_hierids:
+                leaf_hierids.append(extra)
+
+        report["hierarchies_discovered"] = len(leaf_hierids)
+        logger.info("Discovered %d leaf hierarchies", len(leaf_hierids))
+
+        # Step 2: For each leaf, discover positions
+        for hierid in leaf_hierids:
+            positions = self.fetch_positions(hierid=hierid, lang=lang)
+            report["positions_discovered"] += len(positions)
+            logger.info("hierid=%d: %d positions", hierid, len(positions))
+
+            # Step 3: Fetch meta+data for each position
+            for pos_info in positions:
+                pos_id = pos_info["id"]
+                result = self.fetch_and_store_position(
+                    conn=conn, hierid=hierid, pos=pos_id, lang=lang
+                )
+                if result["meta_stored"] or result["data_stored"] > 0:
+                    report["positions_fetched"] += 1
+                else:
+                    report["errors"] += 1
+
+        logger.info(
+            "Done: %d hierarchies, %d positions discovered, %d fetched, %d errors",
+            report["hierarchies_discovered"],
+            report["positions_discovered"],
+            report["positions_fetched"],
+            report["errors"],
+        )
+        return report
+
     @property
     def stats(self) -> dict:
         return {"requests": self._request_count, "errors": self._error_count}
+
+
+if __name__ == "__main__":
+    import argparse
+    from oenb_scraper.database import init_db
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    parser = argparse.ArgumentParser(description="Fetch all ISAweb datasets")
+    parser.add_argument("--db", required=True, help="Path to SQLite database")
+    parser.add_argument("--lang", default="DE", help="Language (DE or EN)")
+    parser.add_argument("--rate-limit", type=float, default=0.5, help="Seconds between requests")
+    args = parser.parse_args()
+
+    conn = init_db(args.db)
+    client = IsawebClient(rate_limit=args.rate_limit)
+    report = client.fetch_all(conn=conn, lang=args.lang)
+
+    print(f"\nResults:")
+    print(f"  Hierarchies: {report['hierarchies_discovered']}")
+    print(f"  Positions discovered: {report['positions_discovered']}")
+    print(f"  Positions fetched: {report['positions_fetched']}")
+    print(f"  Errors: {report['errors']}")

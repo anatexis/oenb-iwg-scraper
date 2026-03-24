@@ -139,3 +139,81 @@ def test_client_fetch_and_store_position(tmp_path):
     obs_count = conn.execute("SELECT COUNT(*) AS c FROM isaweb_observations").fetchone()["c"]
     assert meta_row["title"] == "Einlagefazilität"
     assert obs_count == 2
+
+
+def test_client_fetch_all_discovers_and_fetches_positions(tmp_path):
+    """Full orchestration: tree → leaf positions → meta+data → DB."""
+    from oenb_scraper.database import init_db
+
+    tree_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <content>
+      <header><prepared>2026-03-24T22:00:00Z</prepared></header>
+      <content>
+        <element id="2" parent="0"><text lang="DE">Zinssätze</text></element>
+        <element id="22" parent="2"><text lang="DE">Geldmarktzinssätze</text></element>
+      </content>
+    </content>
+    """
+
+    positions_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <content>
+      <header><prepared>2026-03-24T22:00:00Z</prepared></header>
+      <groups>
+        <group name="alle Daten">
+          <position id="POS1"><text lang="DE">Position 1</text></position>
+        </group>
+      </groups>
+    </content>
+    """
+
+    meta_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <metainfo>
+      <header><prepared>2026-03-24T10:00:00Z</prepared>
+        <sender id="AT2"><name>OeNB</name></sender>
+      </header>
+      <meta>
+        <title>Position 1</title><region>-</region><unit>%</unit>
+        <comment>-</comment><classification>-</classification>
+        <breaks>-</breaks><frequency>Monate</frequency>
+        <data_available></data_available>
+        <last_update>2026-03-01</last_update><source>OeNB</source><lag>-</lag>
+        <releases></releases>
+      </meta>
+    </metainfo>
+    """
+
+    data_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <OeNBData>
+      <data>
+        <dataSet pos="POS1" posTitle="Position 1" freq="M" unitMult="0" unitText="%">
+          <values><obs value="1.0" periode="2025-01"/></values>
+        </dataSet>
+      </data>
+    </OeNBData>
+    """
+
+    def mock_get(url, **kwargs):
+        resp = MagicMock()
+        resp.status_code = 200
+        if "/content?" in url and "report=" in url:
+            resp.content = tree_xml.encode()
+        elif "/content?" in url:
+            resp.content = positions_xml.encode()
+        elif "/meta?" in url:
+            resp.content = meta_xml.encode()
+        else:
+            resp.content = data_xml.encode()
+        return resp
+
+    conn = init_db(tmp_path / "crawler.db")
+    client = IsawebClient(rate_limit=0)
+
+    with patch.object(client._session, "get", side_effect=mock_get):
+        report = client.fetch_all(conn=conn, lang="DE")
+
+    assert report["hierarchies_discovered"] >= 1
+    assert report["positions_discovered"] >= 1
+    assert report["positions_fetched"] >= 1
+
+    dataset_count = conn.execute("SELECT COUNT(*) AS c FROM isaweb_datasets").fetchone()["c"]
+    assert dataset_count >= 1
