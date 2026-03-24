@@ -319,6 +319,32 @@ def parse_meta_response(xml_text: str | bytes) -> dict:
     }
 
 
+def parse_content_positions(xml_text: str | bytes) -> dict:
+    """Parse an ISAweb content response into a list of available positions.
+
+    The content endpoint returns positions when called with a leaf hierid:
+    /isadataservice/content?hierid=LEAF_ID&lang=DE
+    """
+    if isinstance(xml_text, bytes):
+        xml_text = xml_text.decode("utf-8", errors="replace")
+
+    root = ET.fromstring(xml_text)
+    positions: list[dict] = []
+
+    for group in root.findall(".//group"):
+        group_name = group.get("name")
+        for position in group.findall("./position"):
+            pos_id = position.get("id")
+            text = _normalized_text(position.findtext("./text"))
+            if pos_id and text:
+                positions.append({"id": pos_id, "text": text, "group": group_name})
+
+    return {
+        "prepared_at": _normalized_text(root.findtext("./header/prepared")),
+        "positions": positions,
+    }
+
+
 def _normalized_text(value: str | None) -> str | None:
     if value is None:
         return None

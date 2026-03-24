@@ -7,6 +7,7 @@ from oenb_scraper.isaweb_service import (
     build_data_url,
     build_meta_url,
     extract_hierarchy_reference,
+    parse_content_positions,
     parse_data_response,
     parse_meta_response,
 )
@@ -115,6 +116,47 @@ def test_parse_meta_response_extracts_metadata_and_releases():
         {"release_date": "Week 16/2026", "reference": "March 2026", "revision": ""},
         {"release_date": "Week 20/2026", "reference": "April 2026", "revision": ""},
     ]
+
+
+def test_parse_content_positions_extracts_positions_from_groups():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <content>
+      <header>
+        <prepared>2026-03-24T22:00:00Z</prepared>
+        <sender id="AT2"><name>Oesterreichische Nationalbank</name></sender>
+      </header>
+      <groups>
+        <group name="alle Daten">
+          <position id="VDBESEFAZSPIFAGAB">
+            <text lang="DE">Einlagefazilität</text>
+          </position>
+          <position id="VDBESSPITZEREFINZRNG">
+            <text lang="DE">Spitzenrefinanzierungsfazilität</text>
+          </position>
+        </group>
+      </groups>
+    </content>
+    """
+
+    result = parse_content_positions(xml)
+
+    assert result["prepared_at"] == "2026-03-24T22:00:00Z"
+    assert len(result["positions"]) == 2
+    assert result["positions"][0] == {"id": "VDBESEFAZSPIFAGAB", "text": "Einlagefazilität", "group": "alle Daten"}
+    assert result["positions"][1] == {"id": "VDBESSPITZEREFINZRNG", "text": "Spitzenrefinanzierungsfazilität", "group": "alle Daten"}
+
+
+def test_parse_content_positions_returns_empty_for_no_positions():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <content>
+      <header><prepared>2026-03-24T22:00:00Z</prepared></header>
+      <groups><group name="alle Daten"></group></groups>
+    </content>
+    """
+
+    result = parse_content_positions(xml)
+
+    assert result["positions"] == []
 
 
 def test_extract_hierarchy_reference_from_report_url():
