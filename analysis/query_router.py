@@ -164,8 +164,31 @@ FALLBACK_RULES = [
 ]
 
 QUERY_DOMAIN_HINTS = {
+    "monetary_policy": [
+        "geldmenge",
+        "m3",
+        "mindestreserve",
+        "ezb",
+        "ecb",
+        "zinsentscheid",
+        "geldpolitik",
+        "einlagenfazilität",
+        "einlagenfazilitaet",
+        "deposit facility",
+        "leitzins",
+    ],
     "commodity_prices": ["inflation", "inflationsdaten", "verbraucherpreisindex", "vpi"],
-    "interest_rates": ["sparzinsen", "kreditzinsen", "wohnbaukreditzinsen", "basiszinssatz", "referenzzinssatz", "kredit"],
+    "interest_rates": [
+        "sparzinsen",
+        "kreditzinsen",
+        "wohnbaukreditzinsen",
+        "basiszinssatz",
+        "referenzzinssatz",
+        "kredit",
+        "kreditvergabe",
+        "interest rates",
+        "lending rate",
+    ],
     "real_estate": ["wohnimmobilienpreisindex", "immobilienpreise"],
     "financial_soundness": [
         "oesterreichischen banken",
@@ -175,6 +198,7 @@ QUERY_DOMAIN_HINTS = {
         "bankenstabilitaet",
         "bankenstabilität",
     ],
+    "external_sector": ["target2", "zahlungsbilanz", "direktinvestition"],
 }
 
 QUERY_ENTITY_RULES = [
@@ -255,6 +279,25 @@ IN_SCOPE_HINTS = {
     "kunstsammlung",
     "führungsfunktionen",
     "fuehrungsfunktionen",
+    # English financial terms
+    "interest",
+    "rate",
+    "monetary",
+    "deposit",
+    "reserve",
+    # German terms missing from original set
+    "geldmenge",
+    "mindestreserve",
+    "target2",
+    "geld",
+    "sicher",
+    "einlag",
+    "ezb",
+    "ecb",
+    "geldpolitik",
+    "zahlungsverkehr",
+    "meldewesen",
+    "finanzmarkt",
 }
 
 
@@ -980,9 +1023,13 @@ def _normalize_freshness(value) -> str:
 
 def _normalize_strategy(value, domains: list[str]) -> str:
     normalized = str(value or "").strip().lower()
-    if normalized in STRATEGIES:
-        return normalized
-    return _infer_fallback_strategy(domains)
+    if normalized not in STRATEGIES:
+        return _infer_fallback_strategy(domains)
+    # Statistical domains should never use rag_first — they need sql_first or hybrid.
+    # The LLM sometimes returns rag_first for statistics queries; override it.
+    if normalized == "rag_first" and any(d in STATISTICAL_DOMAINS for d in domains):
+        return _infer_fallback_strategy(domains)
+    return normalized
 
 
 def _normalize_query_intent(value, intent: str) -> str:
