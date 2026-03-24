@@ -1,0 +1,30 @@
+[
+  {
+    "query": "Wie hoch ist der Leitzins aktuell?",
+    "expected_domains": ["monetary_policy", "interest_rates"]
+  },
+  {
+    "query": "Wie hoch ist der Zinssatz für die Einlagenfazilität?",
+    "expected_domains": ["monetary_policy", "interest_rates"]
+  },
+  {
+    "query": "Wie hoch ist der Goldpreis aktuell?",
+    "expected_domains": ["commodity_prices"]
+  },
+  {
+    "query": "Was ist der RPPI in Österreich?",
+    "expected_domains": ["real_estate"]
+  },
+  {
+    "query": "Wann ist die nächste Veröffentlichung der Financial Soundness Indicators?",
+    "expected_domains": ["financial_soundness"]
+  },
+  {
+    "query": "Mich interessieren Immobilienpreise und Gold",
+    "expected_domains": ["commodity_prices", "real_estate"]
+  },
+  {
+    "query": "Wo finde ich die Standardized Tables zu Wechselkursen?",
+    "expected_domains": ["website_general"]
+  }
+]

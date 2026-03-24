@@ -16,6 +16,12 @@ data/*.html
 data/*.html.gz
 data/*.parquet
 data/chromadb/
+data/statistics_production/
+data/full_site_production/
+data/archive/
+data/smoke/
+data/smoke_live/
+scraper/data/
 output/
 
 # Zip archives

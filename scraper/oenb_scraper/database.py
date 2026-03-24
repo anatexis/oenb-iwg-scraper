@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from oenb_scraper.freshness import should_reextract_content
+
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 
@@ -57,12 +59,196 @@ CREATE TABLE IF NOT EXISTS page_content (
 );
 
 CREATE INDEX IF NOT EXISTS idx_content_section ON page_content(page_section);
+
+CREATE TABLE IF NOT EXISTS asset_documents (
+  page_id            INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
+  asset_type         TEXT NOT NULL,
+  extraction_status  TEXT NOT NULL,
+  text_content       TEXT,
+  metadata_json      TEXT,
+  body_hash          TEXT,
+  extracted_at       TEXT NOT NULL,
+  extractor_version  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_documents_type
+  ON asset_documents(asset_type, extraction_status);
+
+CREATE TABLE IF NOT EXISTS frontier_urls (
+  id                  INTEGER PRIMARY KEY,
+  url                 TEXT NOT NULL UNIQUE,
+  discovered_at       TEXT NOT NULL,
+  last_seen_at        TEXT NOT NULL,
+  last_crawled_at     TEXT,
+  priority            INTEGER NOT NULL DEFAULT 0,
+  scope_class         TEXT,
+  resource_kind       TEXT,
+  revisit_after       TEXT,
+  active              INTEGER NOT NULL DEFAULT 1,
+  referring_url_count INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_frontier_due
+  ON frontier_urls(active, revisit_after, priority);
+
+CREATE TABLE IF NOT EXISTS resource_links (
+  id                    INTEGER PRIMARY KEY,
+  source_url            TEXT NOT NULL,
+  target_url            TEXT NOT NULL,
+  normalized_target_url TEXT NOT NULL,
+  link_text             TEXT,
+  section_heading       TEXT,
+  resource_kind         TEXT,
+  embed_type            TEXT,
+  discovered_at         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_resource_links_target
+  ON resource_links(normalized_target_url);
+
+CREATE TABLE IF NOT EXISTS resource_versions (
+  id             INTEGER PRIMARY KEY,
+  url            TEXT NOT NULL,
+  body_hash      TEXT,
+  fetched_at     TEXT NOT NULL,
+  etag           TEXT,
+  last_modified  TEXT,
+  status_code    INTEGER,
+  UNIQUE(url, body_hash, fetched_at)
+);
+
+CREATE TABLE IF NOT EXISTS isaweb_datasets (
+  id          INTEGER PRIMARY KEY,
+  dataset_key TEXT NOT NULL UNIQUE,
+  hierid      INTEGER NOT NULL,
+  lang        TEXT NOT NULL,
+  freq        TEXT,
+  title       TEXT,
+  source_url  TEXT,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_datasets_hierid
+  ON isaweb_datasets(hierid, lang, freq);
+
+CREATE TABLE IF NOT EXISTS isaweb_dimensions (
+  id              INTEGER PRIMARY KEY,
+  dataset_id      INTEGER NOT NULL REFERENCES isaweb_datasets(id) ON DELETE CASCADE,
+  dimension_key   TEXT NOT NULL,
+  dimension_value TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_dimensions_dataset
+  ON isaweb_dimensions(dataset_id, dimension_key);
+
+CREATE TABLE IF NOT EXISTS isaweb_observations (
+  id           INTEGER PRIMARY KEY,
+  dataset_id   INTEGER NOT NULL REFERENCES isaweb_datasets(id) ON DELETE CASCADE,
+  period       TEXT NOT NULL,
+  value        TEXT,
+  unit         TEXT,
+  series_label TEXT,
+  created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_observations_dataset
+  ON isaweb_observations(dataset_id, period);
+
+CREATE TABLE IF NOT EXISTS isaweb_metadata (
+  id                  INTEGER PRIMARY KEY,
+  meta_key            TEXT NOT NULL UNIQUE,
+  hierid              INTEGER NOT NULL,
+  lang                TEXT NOT NULL,
+  pos                 TEXT NOT NULL,
+  meta_url            TEXT NOT NULL,
+  title               TEXT,
+  region              TEXT,
+  unit                TEXT,
+  comment             TEXT,
+  classification      TEXT,
+  breaks              TEXT,
+  frequency           TEXT,
+  data_available_json TEXT,
+  last_update         TEXT,
+  source              TEXT,
+  lag                 TEXT,
+  prepared_at         TEXT,
+  sender_id           TEXT,
+  sender_name         TEXT,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_metadata_lookup
+  ON isaweb_metadata(hierid, lang, pos);
+
+CREATE TABLE IF NOT EXISTS isaweb_content_nodes (
+  id            INTEGER PRIMARY KEY,
+  hierid        INTEGER,
+  lang          TEXT NOT NULL,
+  node_id       INTEGER NOT NULL,
+  parent_id     INTEGER,
+  label         TEXT NOT NULL,
+  section_id    INTEGER,
+  section_label TEXT,
+  family_id     INTEGER,
+  family_label  TEXT,
+  path_json     TEXT NOT NULL,
+  content_url   TEXT NOT NULL,
+  prepared_at   TEXT,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  UNIQUE(lang, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_content_lookup
+  ON isaweb_content_nodes(lang, section_id, family_id, node_id);
+
+CREATE TABLE IF NOT EXISTS isaweb_page_contexts (
+  id                    INTEGER PRIMARY KEY,
+  source_url            TEXT NOT NULL,
+  target_url            TEXT NOT NULL,
+  normalized_target_url TEXT NOT NULL,
+  hierid                INTEGER NOT NULL,
+  lang                  TEXT NOT NULL,
+  relation_kind         TEXT,
+  link_text             TEXT,
+  section_heading       TEXT,
+  section_id            INTEGER,
+  section_label         TEXT,
+  family_id             INTEGER,
+  family_label          TEXT,
+  created_at            TEXT NOT NULL,
+  updated_at            TEXT NOT NULL,
+  UNIQUE(source_url, normalized_target_url, hierid, lang)
+);
+
+CREATE INDEX IF NOT EXISTS idx_isaweb_page_contexts_lookup
+  ON isaweb_page_contexts(hierid, lang, source_url);
+
+CREATE TABLE IF NOT EXISTS release_events (
+  id                INTEGER PRIMARY KEY,
+  metadata_id       INTEGER NOT NULL REFERENCES isaweb_metadata(id) ON DELETE CASCADE,
+  hierid            INTEGER NOT NULL,
+  lang              TEXT NOT NULL,
+  pos               TEXT NOT NULL,
+  release_date_text TEXT NOT NULL,
+  reference_text    TEXT,
+  revision_text     TEXT,
+  source_url        TEXT,
+  created_at        TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_release_events_unique
+  ON release_events(metadata_id, release_date_text, reference_text);
 """
 
 
 def init_db(db_path: Path) -> sqlite3.Connection:
     """Initialize database with schema. Returns connection."""
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     conn.commit()
     return conn
@@ -113,7 +299,7 @@ def store_page(
 
     if existing:
         page_id, old_hash = existing
-        if old_hash == body_hash:
+        if not should_reextract_content(previous_hash=old_hash, current_hash=body_hash):
             # Content unchanged - just update fetched_at
             conn.execute(
                 "UPDATE pages SET fetched_at = ?, crawl_run_id = ? WHERE id = ?",
@@ -165,3 +351,79 @@ def store_page(
 
     conn.commit()
     return page_id
+
+
+def store_resource_link(
+    conn: sqlite3.Connection,
+    *,
+    source_url: str,
+    target_url: str,
+    normalized_target_url: str,
+    link_text: str | None = None,
+    section_heading: str | None = None,
+    resource_kind: str | None = None,
+    embed_type: str | None = None,
+    discovered_at: str | None = None,
+) -> int:
+    """Persist a discovered parent-child resource relation."""
+
+    discovered_at = discovered_at or datetime.utcnow().isoformat() + "Z"
+    cursor = conn.execute(
+        """
+        INSERT INTO resource_links
+          (source_url, target_url, normalized_target_url, link_text, section_heading, resource_kind, embed_type, discovered_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            source_url,
+            target_url,
+            normalized_target_url,
+            link_text,
+            section_heading,
+            resource_kind,
+            embed_type,
+            discovered_at,
+        ),
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def list_resource_links_for_target(conn: sqlite3.Connection, normalized_target_url: str) -> list[sqlite3.Row]:
+    """Fetch all stored parent links for a canonical target URL."""
+
+    rows = conn.execute(
+        """
+        SELECT source_url, target_url, normalized_target_url, link_text, section_heading, resource_kind, embed_type, discovered_at
+        FROM resource_links
+        WHERE normalized_target_url = ?
+        ORDER BY discovered_at ASC, id ASC
+        """,
+        (normalized_target_url,),
+    ).fetchall()
+    return list(rows)
+
+
+def store_resource_version(
+    conn: sqlite3.Connection,
+    *,
+    url: str,
+    body_hash: str | None,
+    status_code: int | None = None,
+    etag: str | None = None,
+    last_modified: str | None = None,
+    fetched_at: str | None = None,
+) -> int:
+    """Persist an immutable fetched resource version entry."""
+
+    fetched_at = fetched_at or datetime.utcnow().isoformat() + "Z"
+    cursor = conn.execute(
+        """
+        INSERT INTO resource_versions
+          (url, body_hash, fetched_at, etag, last_modified, status_code)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (url, body_hash, fetched_at, etag, last_modified, status_code),
+    )
+    conn.commit()
+    return cursor.lastrowid

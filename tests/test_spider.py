@@ -215,6 +215,22 @@ class TestFileExtensionExtraction:
         assert self.spider._get_file_extension("https://example.com/export?format=xlsx") == "xlsx"
 
 
+class TestInteractiveResourceKinds:
+    def setup_method(self):
+        self.spider = OenbSpider()
+
+    def test_release_schedule_item_gets_release_event_resource_kind(self):
+        item = self.spider._create_item(
+            "interactive_data",
+            url="https://www.oenb.at/isawebstat/releasekalender/showReleaseForReport?lang=EN&report=6.6",
+            found_on_page="https://www.oenb.at/en/Statistics/Standardized-Tables/Prices--Competitiveness/real-estate.html",
+            title="Publication schedule",
+            language="en",
+        )
+
+        assert item["resource_kind"] == "release_event"
+
+
 class MockSelector:
     """Mock Scrapy selector for testing."""
 
