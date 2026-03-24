@@ -36,6 +36,7 @@ def export_knowledge_base_jsonl(db_path: Path, output_path: Path) -> int:
     records.extend(release_records)
     records.extend(family_records)
     records.extend(_chatbot_chunk_records(family_records, isaweb_records, asset_records))
+    records.extend(_page_chatbot_chunk_records(page_records))
     conn.close()
 
     with output_path.open("w", encoding="utf-8") as handle:
@@ -575,6 +576,42 @@ def _chatbot_chunk_records(
             }
         )
     return sorted(records, key=lambda record: (-record["retrieval_score"], record["id"]))
+
+
+def _page_chatbot_chunk_records(page_records: list[dict]) -> list[dict]:
+    """Generate chatbot_chunk records from website page_documents."""
+    MIN_TEXT_LENGTH = 50
+    records = []
+    for page in page_records:
+        text = (page.get("text") or "").strip()
+        title = (page.get("title") or "").strip()
+        if len(text) < MIN_TEXT_LENGTH:
+            continue
+        # Build a concise snippet: title + first ~500 chars of text
+        snippet = text[:500]
+        if len(text) > 500:
+            # Cut at last sentence boundary
+            cut = snippet.rfind(". ")
+            if cut > 200:
+                snippet = snippet[: cut + 1]
+        chunk_text = f"{title}\n\n{snippet}" if title else snippet
+        records.append(
+            {
+                "record_type": "chatbot_chunk",
+                "id": f"chatbot_chunk:{page['id']}:page",
+                "parent_id": page["id"],
+                "parent_record_type": "page_document",
+                "family_key": None,
+                "chunk_kind": "page_summary",
+                "title": title,
+                "text": chunk_text,
+                "sources": [],
+                "reference_urls": [page["url"]],
+                "retrieval_score": 100,
+                "retrieval_tier": "low",
+            }
+        )
+    return records
 
 
 def _group_dimensions(rows: list[sqlite3.Row]) -> dict[str, list[str]]:

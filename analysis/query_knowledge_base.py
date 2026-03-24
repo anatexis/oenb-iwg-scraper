@@ -225,7 +225,7 @@ def _is_candidate_match(haystack: str, query_tokens: list[str], strong_terms: li
     token_hits = [token for token in query_tokens if token in haystack]
     if not token_hits:
         return False
-    if len(query_tokens) <= 1:
+    if len(query_tokens) <= 3:
         return True
     return len(token_hits) >= 2
 

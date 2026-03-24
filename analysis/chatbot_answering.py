@@ -232,6 +232,8 @@ def _is_grounded_top_hit(query: str, routing: dict | None, hit: dict) -> bool:
     if routing.get("strategy") == "rag_first" and hit.get("parent_record_type") == "asset_document":
         return primary_grounded
     if routing.get("strategy") == "rag_first" and routing.get("domains") == ["website_general"]:
+        if hit.get("parent_record_type") == "page_document":
+            return primary_grounded
         return primary_grounded and float(routing.get("confidence") or 0.0) >= 0.55
     return primary_grounded or grounded_hits >= 1 or float(routing.get("confidence") or 0.0) >= 0.8
 

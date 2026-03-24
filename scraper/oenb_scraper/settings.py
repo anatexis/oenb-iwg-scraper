@@ -29,6 +29,12 @@ LOG_LEVEL = "INFO"
 # Disable cookies (not needed)
 COOKIES_ENABLED = False
 
+# Breadth-first crawl order — ensures all start URLs and section landing pages
+# are visited before diving deep into any single section.
+DEPTH_PRIORITY = 1
+SCHEDULER_DISK_QUEUE = "scrapy.squeues.PickleFifoDiskQueue"
+SCHEDULER_MEMORY_QUEUE = "scrapy.squeues.FifoMemoryQueue"
+
 # Enable AutoThrottle for additional politeness
 AUTOTHROTTLE_ENABLED = True
 AUTOTHROTTLE_START_DELAY = 0.5
