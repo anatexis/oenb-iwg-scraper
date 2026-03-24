@@ -47,3 +47,34 @@ def test_client_fetch_positions_returns_empty_on_http_error():
         positions = client.fetch_positions(hierid=99, lang="DE")
 
     assert positions == []
+
+
+def test_client_discover_leaf_hierids_from_tree():
+    """Client fetches navigation tree, identifies leaf nodes."""
+    tree_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <content>
+      <header><prepared>2026-03-24T22:00:00Z</prepared></header>
+      <content>
+        <element id="1" parent="0"><text lang="DE">OeNB</text></element>
+        <element id="11" parent="1"><text lang="DE">Bilanzpositionen</text></element>
+        <element id="13" parent="1"><text lang="DE">Geldmengenaggregate</text></element>
+        <element id="2" parent="0"><text lang="DE">Zinssätze</text></element>
+        <element id="22" parent="2"><text lang="DE">Geldmarktzinssätze</text></element>
+      </content>
+    </content>
+    """
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = tree_xml.encode("utf-8")
+
+    client = IsawebClient(rate_limit=0)
+    with patch.object(client._session, "get", return_value=mock_response):
+        leaves = client.fetch_hierarchy_tree(lang="DE")
+
+    # Leaves: 11, 13, 22 (never appear as parent). 1 and 2 are parents → not leaves.
+    assert sorted(leaves, key=lambda x: x["hierid"]) == [
+        {"hierid": 11, "label": "Bilanzpositionen"},
+        {"hierid": 13, "label": "Geldmengenaggregate"},
+        {"hierid": 22, "label": "Geldmarktzinssätze"},
+    ]

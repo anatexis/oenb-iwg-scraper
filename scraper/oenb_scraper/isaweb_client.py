@@ -5,7 +5,9 @@ import time
 
 import requests
 
+from oenb_scraper.isaweb_resolver import parse_content_response
 from oenb_scraper.isaweb_service import (
+    BASE_URL,
     build_content_url,
     build_data_url,
     build_meta_url,
@@ -17,6 +19,7 @@ from oenb_scraper.isaweb_service import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_RATE_LIMIT = 0.5
+TREE_REPORT_ID = "1.1"  # Any valid report ID returns the full hierarchy tree
 
 
 class IsawebClient:
@@ -55,6 +58,25 @@ class IsawebClient:
             return []
         result = parse_content_positions(content)
         return result["positions"]
+
+    def fetch_hierarchy_tree(self, *, lang: str = "DE") -> list[dict]:
+        """Fetch the full navigation tree and return leaf nodes."""
+        url = f"{BASE_URL}/content?lang={lang}&report={TREE_REPORT_ID}"
+        content = self._get(url)
+        if content is None:
+            return []
+
+        parsed = parse_content_response(content)
+        elements = parsed.get("elements", [])
+        parent_ids = {el["parent"] for el in elements}
+        return sorted(
+            [
+                {"hierid": el["id"], "label": el["text"]}
+                for el in elements
+                if el["id"] not in parent_ids
+            ],
+            key=lambda x: x["hierid"],
+        )
 
     @property
     def stats(self) -> dict:
