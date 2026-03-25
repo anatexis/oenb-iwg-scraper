@@ -384,25 +384,25 @@ class OenbSpider(scrapy.Spider):
                     if hierarchy_reference is not None:
                         yield scrapy.Request(hierarchy_reference.content_url, callback=self.parse_isaweb_content)
 
-            if self._is_interactive_data(embedded_url):
-                yield self._create_item(
-                    "interactive_data",
-                    url=embedded_url,
-                    title=self._get_meaningful_title("", embedded_url),
-                    found_on_page=page_url,
-                    page_section=page_section,
-                    section_heading="",
-                    page_date=page_date,
-                    language=page_language,
-                    sources=page_source_metadata.sources,
-                    source_links=page_source_metadata.source_links,
-                    source_text_raw=page_source_metadata.source_text_raw,
-                    reporting_institutions=page_source_metadata.reporting_institutions,
-                    source_extraction_method=page_source_metadata.source_extraction_method,
-                )
+                if self._is_interactive_data(embedded_url):
+                    yield self._create_item(
+                        "interactive_data",
+                        url=embedded_url,
+                        title=self._get_meaningful_title("", embedded_url),
+                        found_on_page=page_url,
+                        page_section=page_section,
+                        section_heading="",
+                        page_date=page_date,
+                        language=page_language,
+                        sources=page_source_metadata.sources,
+                        source_links=page_source_metadata.source_links,
+                        source_text_raw=page_source_metadata.source_text_raw,
+                        reporting_institutions=page_source_metadata.reporting_institutions,
+                        source_extraction_method=page_source_metadata.source_extraction_method,
+                    )
 
-            if self._is_interactive_data(embedded_url) and self._should_follow_interactive_data_link(embedded_url):
-                yield response.follow(embedded_url, callback=self.parse)
+                if self._is_interactive_data(embedded_url) and self._should_follow_interactive_data_link(embedded_url):
+                    yield response.follow(embedded_url, callback=self.parse)
 
         # Also check iframes for embedded Shiny apps
         for iframe in response.css("iframe[src]"):
