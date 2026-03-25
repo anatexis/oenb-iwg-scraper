@@ -13,8 +13,6 @@ from oenb_scraper.isaweb_service import (
     build_data_url,
     build_meta_url,
     parse_content_positions,
-    parse_data_response,
-    parse_meta_response,
 )
 from oenb_scraper.isaweb_store import (
     store_isaweb_data_response,
@@ -62,8 +60,12 @@ class IsawebClient:
         content = self._get(url)
         if content is None:
             return []
-        result = parse_content_positions(content)
-        return result["positions"]
+        try:
+            result = parse_content_positions(content)
+            return result["positions"]
+        except Exception:
+            logger.warning("Failed to parse positions for hierid=%d", hierid, exc_info=True)
+            return []
 
     def fetch_hierarchy_tree(self, *, lang: str = "DE") -> list[dict]:
         """Fetch the full navigation tree and return leaf nodes."""
@@ -72,7 +74,12 @@ class IsawebClient:
         if content is None:
             return []
 
-        parsed = parse_content_response(content)
+        try:
+            parsed = parse_content_response(content)
+        except Exception:
+            logger.warning("Failed to parse hierarchy tree", exc_info=True)
+            return []
+
         elements = parsed.get("elements", [])
         parent_ids = {el["parent"] for el in elements}
         return sorted(
@@ -188,11 +195,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     conn = init_db(args.db)
-    client = IsawebClient(rate_limit=args.rate_limit)
-    report = client.fetch_all(conn=conn, lang=args.lang)
+    try:
+        client = IsawebClient(rate_limit=args.rate_limit)
+        report = client.fetch_all(conn=conn, lang=args.lang)
 
-    print(f"\nResults:")
-    print(f"  Hierarchies: {report['hierarchies_discovered']}")
-    print(f"  Positions discovered: {report['positions_discovered']}")
-    print(f"  Positions fetched: {report['positions_fetched']}")
-    print(f"  Errors: {report['errors']}")
+        print(f"\nResults:")
+        print(f"  Hierarchies: {report['hierarchies_discovered']}")
+        print(f"  Positions discovered: {report['positions_discovered']}")
+        print(f"  Positions fetched: {report['positions_fetched']}")
+        print(f"  Errors: {report['errors']}")
+        print(f"  HTTP requests: {client.stats['requests']}")
+    finally:
+        conn.close()
