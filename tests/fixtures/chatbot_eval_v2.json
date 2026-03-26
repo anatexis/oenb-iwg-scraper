@@ -1,0 +1,422 @@
+[
+  {
+    "id": "nav_001",
+    "query": "Wo finde ich auf der OeNB-Seite die Statistik-Hauptseite?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should point to /Statistik/ main page"
+  },
+  {
+    "id": "nav_002",
+    "query": "Auf welcher Seite finde ich Informationen zur Aussenwirtschaftsstatistik?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find Aussenwirtschaft/external sector section"
+  },
+  {
+    "id": "nav_003",
+    "query": "Wo finde ich Daten zu Kreditinstituten oder Bankenstatistik?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find banking statistics section"
+  },
+  {
+    "id": "nav_004",
+    "query": "Wo finde ich auf der OeNB-Website Zeitreihen zu Zinssaetzen?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find interest rates section or ISAweb tables"
+  },
+  {
+    "id": "nav_005",
+    "query": "Gibt es eine Uebersichtsseite zu Publikationen der OeNB, und wo ist sie?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find /Publikationen/ section"
+  },
+  {
+    "id": "nav_006",
+    "query": "Wo finde ich statistische Daten zum oesterreichischen Finanzsektor?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find financial sector statistics"
+  },
+  {
+    "id": "nav_007",
+    "query": "Auf welcher Seite finde ich Informationen zu Zahlungsverkehrsstatistiken?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find Zahlungsverkehr section"
+  },
+  {
+    "id": "nav_008",
+    "query": "Wo finde ich Daten oder Informationen zur Finanzmarktstabilitaet?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find financial stability section or FSI data"
+  },
+  {
+    "id": "nav_009",
+    "query": "Gibt es auf der OeNB-Seite eine Suchmoeglichkeit speziell fuer statistische Tabellen?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should reference ISAweb or statistics search functionality"
+  },
+  {
+    "id": "nav_010",
+    "query": "Wo finde ich englischsprachige Inhalte zur Statistik auf der OeNB-Seite?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should point to /en/Statistics/ section"
+  },
+  {
+    "id": "fact_001",
+    "query": "Was versteht die OeNB unter Aussenwirtschaftsstatistik?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain external sector statistics from website content"
+  },
+  {
+    "id": "fact_002",
+    "query": "Was ist auf der OeNB-Seite mit monetaeren Statistiken gemeint?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain monetary statistics"
+  },
+  {
+    "id": "fact_003",
+    "query": "Was ist der Unterschied zwischen Bankenstatistik und Finanzmarktstabilitaetsstatistik?",
+    "type": "FACT",
+    "expected_answer_mode": "comparison_definition",
+    "notes": "Should differentiate banking statistics from financial stability"
+  },
+  {
+    "id": "fact_004",
+    "query": "Was ist eine Zahlungsbilanz?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain balance of payments concept"
+  },
+  {
+    "id": "fact_005",
+    "query": "Was ist der Unterschied zwischen Leistungsbilanz und Kapitalbilanz?",
+    "type": "FACT",
+    "expected_answer_mode": "comparison_definition",
+    "notes": "Should differentiate current account and capital account"
+  },
+  {
+    "id": "fact_006",
+    "query": "Was bedeutet AnaCredit im Kontext der OeNB?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain AnaCredit granular credit database"
+  },
+  {
+    "id": "fact_007",
+    "query": "Was ist mit Meldewesen auf der OeNB-Seite gemeint?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain reporting requirements (Meldewesen)"
+  },
+  {
+    "id": "fact_008",
+    "query": "Was bedeutet granulare Kreditdaten bei der OeNB?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain granular credit data in AnaCredit context"
+  },
+  {
+    "id": "fact_009",
+    "query": "Was ist der Unterschied zwischen statistischen Daten und aufsichtsrechtlichen Meldedaten?",
+    "type": "FACT",
+    "expected_answer_mode": "comparison_definition",
+    "notes": "Should differentiate statistical vs supervisory reporting data"
+  },
+  {
+    "id": "fact_010",
+    "query": "Was bedeutet Zeitreihe im Kontext der OeNB-Statistikseiten?",
+    "type": "FACT",
+    "expected_answer_mode": "definition_from_page",
+    "notes": "Should explain time series concept in OeNB statistics context"
+  },
+  {
+    "id": "table_001",
+    "query": "Wo finde ich eine Tabelle mit oesterreichischen Zinssaetzen?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find interest rate tables in ISAweb"
+  },
+  {
+    "id": "table_002",
+    "query": "Gibt es auf der OeNB-Seite Daten zur Inflation oder verweist die OeNB dafuer auf eine andere Institution?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_with_context",
+    "notes": "Should find inflation indicators and note data sources"
+  },
+  {
+    "id": "table_003",
+    "query": "Wo finde ich historische Daten zu Wechselkursen?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find exchange rate time series"
+  },
+  {
+    "id": "table_004",
+    "query": "Auf welcher Seite finde ich Daten zu Krediten an private Haushalte?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find household lending data"
+  },
+  {
+    "id": "table_005",
+    "query": "Wo finde ich Zeitreihen zu Einlagen von Haushalten oder Unternehmen?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find deposit data for households/enterprises"
+  },
+  {
+    "id": "table_006",
+    "query": "Gibt es auf der OeNB-Seite Daten zu Wohnbaukrediten?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find housing loans data"
+  },
+  {
+    "id": "table_007",
+    "query": "Wo finde ich statistische Daten zu Direktinvestitionen?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find FDI statistics"
+  },
+  {
+    "id": "table_008",
+    "query": "Gibt es Tabellen zu Wertpapierbestaenden oder Wertpapierinvestitionen?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find securities holdings data"
+  },
+  {
+    "id": "table_009",
+    "query": "Wo finde ich Daten zur oesterreichischen Auslandsverschuldung?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find external debt data"
+  },
+  {
+    "id": "table_010",
+    "query": "Welche Seite enthaelt Tabellen oder Zeitreihen zum Zahlungsverkehr in Oesterreich?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_navigation",
+    "notes": "Should find payment statistics tables"
+  },
+  {
+    "id": "meta_001",
+    "query": "Welche Quelle wird auf der Statistikseite zu Zinssaetzen genannt?",
+    "type": "META",
+    "expected_answer_mode": "source_attribution",
+    "notes": "Should identify data source (OeNB, ECB, etc.)"
+  },
+  {
+    "id": "meta_002",
+    "query": "Steht bei der Inflationstabelle, ob die Daten von der OeNB, von Statistik Austria oder von der EZB stammen?",
+    "type": "META",
+    "expected_answer_mode": "source_attribution",
+    "notes": "Should identify inflation data source attribution"
+  },
+  {
+    "id": "meta_003",
+    "query": "Gibt es auf der Seite einen methodischen Hinweis zur Interpretation der Daten?",
+    "type": "META",
+    "expected_answer_mode": "metadata_lookup",
+    "notes": "Should indicate presence/absence of methodological notes"
+  },
+  {
+    "id": "meta_004",
+    "query": "Wo finde ich Erlaeuterungen zu Definitionen und Abgrenzungen einer Statistik?",
+    "type": "META",
+    "expected_answer_mode": "metadata_navigation",
+    "notes": "Should point to definitions/methodology pages"
+  },
+  {
+    "id": "meta_005",
+    "query": "Ist auf der Seite angegeben, wann die Daten zuletzt aktualisiert wurden?",
+    "type": "META",
+    "expected_answer_mode": "metadata_lookup",
+    "notes": "Should reference last_update field from ISAweb metadata"
+  },
+  {
+    "id": "meta_006",
+    "query": "Gibt es Metadaten oder Fussnoten zu dieser Tabelle?",
+    "type": "META",
+    "expected_answer_mode": "metadata_lookup",
+    "notes": "Should reference metadata/footnotes availability"
+  },
+  {
+    "id": "meta_007",
+    "query": "Wird auf der Seite erklaert, warum Zeitreihen revidiert wurden?",
+    "type": "META",
+    "expected_answer_mode": "metadata_lookup",
+    "notes": "Should address revision explanations"
+  },
+  {
+    "id": "meta_008",
+    "query": "Ist erkennbar, ob die Daten saisonbereinigt sind?",
+    "type": "META",
+    "expected_answer_mode": "metadata_lookup",
+    "notes": "Should reference seasonal adjustment info in metadata"
+  },
+  {
+    "id": "meta_009",
+    "query": "Wo finde ich den rechtlichen Hintergrund oder die Rechtsgrundlage zu dieser Statistik?",
+    "type": "META",
+    "expected_answer_mode": "legal_reference",
+    "notes": "Should find legal basis pages or references"
+  },
+  {
+    "id": "meta_010",
+    "query": "Gibt es Hinweise auf Downloads in Excel, CSV oder PDF?",
+    "type": "META",
+    "expected_answer_mode": "download_navigation",
+    "notes": "Should reference download formats available"
+  },
+  {
+    "id": "pub_001",
+    "query": "Wo finde ich den aktuellsten statistischen Bericht der OeNB?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find latest statistical publication"
+  },
+  {
+    "id": "pub_002",
+    "query": "Gibt es auf der OeNB-Seite einen Bericht zur Finanzmarktstabilitaet?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find Financial Stability Report"
+  },
+  {
+    "id": "pub_003",
+    "query": "Wo finde ich Publikationen zur oesterreichischen Wirtschaftsentwicklung?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find economic development publications"
+  },
+  {
+    "id": "pub_004",
+    "query": "Gibt es eine Seite mit allen Presseaussendungen der OeNB?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find /Presse/ section"
+  },
+  {
+    "id": "pub_005",
+    "query": "Wo finde ich Download-Dateien zu einer bestimmten Statistik?",
+    "type": "TABLE",
+    "expected_answer_mode": "download_navigation",
+    "notes": "Should explain how to find downloads for statistics"
+  },
+  {
+    "id": "pub_006",
+    "query": "Gibt es PDF-Berichte und zusaetzlich maschinenlesbare Datentabellen?",
+    "type": "META",
+    "expected_answer_mode": "format_info",
+    "notes": "Should explain available formats (PDF reports + machine-readable)"
+  },
+  {
+    "id": "pub_007",
+    "query": "Wo finde ich archivierte aeltere Publikationen?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find publication archive"
+  },
+  {
+    "id": "pub_008",
+    "query": "Auf welcher Seite finde ich Forschungspapiere oder Working Papers der OeNB?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find /Forschung/ or Working Papers section"
+  },
+  {
+    "id": "pub_009",
+    "query": "Gibt es auf der OeNB-Seite ein Glossar oder FAQ zu Statistikbegriffen?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find FAQ or glossary if exists"
+  },
+  {
+    "id": "pub_010",
+    "query": "Wo finde ich Kontaktinformationen fuer Rueckfragen zu einer bestimmten Statistik?",
+    "type": "NAV",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should find contact info or Impressum"
+  },
+  {
+    "id": "hard_001",
+    "query": "Ich suche die neueste OeNB-Tabelle zu Krediten an nichtfinanzielle Unternehmen in Oesterreich - wo finde ich sie, und was ist der genaue Titel?",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_with_title",
+    "notes": "Should find exact dataset title for non-financial corporate lending"
+  },
+  {
+    "id": "hard_002",
+    "query": "Auf dieser Seite steht eine Zahl, aber ich moechte wissen, aus welcher Quelle sie stammt und ob dazu eine Fussnote existiert.",
+    "type": "META",
+    "expected_answer_mode": "source_and_footnote",
+    "notes": "Ambiguous - should ask for context or explain how to find source/footnotes generally"
+  },
+  {
+    "id": "hard_003",
+    "query": "Bitte vergleiche, welche der beiden Seiten besser zu meiner Frage passt: Zahlungsbilanz oder Direktinvestitionen.",
+    "type": "COMPARE",
+    "expected_answer_mode": "page_comparison",
+    "notes": "Should compare balance of payments vs FDI pages, explain scope of each"
+  },
+  {
+    "id": "hard_004",
+    "query": "Finde die passende Statistikseite und sage mir auch, ob es dort einen Excel-Download gibt.",
+    "type": "TABLE",
+    "expected_answer_mode": "dataset_with_download_info",
+    "notes": "Ambiguous - should ask what topic, or explain general download availability"
+  },
+  {
+    "id": "hard_005",
+    "query": "Nenne mir die relevante Seite, die Rechtsgrundlage und das letzte Aktualisierungsdatum zu dieser Statistik.",
+    "type": "META",
+    "expected_answer_mode": "multi_metadata",
+    "notes": "Ambiguous - should ask which statistic, or demonstrate for an example"
+  },
+  {
+    "id": "ood_001",
+    "query": "Wie geht es mir heute?",
+    "type": "OOD",
+    "expected_answer_mode": "reject",
+    "notes": "Personal/emotional question - clearly out of domain"
+  },
+  {
+    "id": "ood_002",
+    "query": "Welche Zimmerpflanze eignet sich am besten fuer ein dunkles Badezimmer?",
+    "type": "OOD",
+    "expected_answer_mode": "reject",
+    "notes": "Houseplant question - clearly out of domain"
+  },
+  {
+    "id": "ood_003",
+    "query": "Kannst du mir ein Rezept fuer Linsenpfannkuchen geben?",
+    "type": "OOD",
+    "expected_answer_mode": "reject",
+    "notes": "Cooking recipe - clearly out of domain"
+  },
+  {
+    "id": "ood_004",
+    "query": "Was ist die beste Trainingsmethode fuer einen Planche?",
+    "type": "OOD",
+    "expected_answer_mode": "reject",
+    "notes": "Fitness question - clearly out of domain"
+  },
+  {
+    "id": "ood_005",
+    "query": "Mein Kind mag Pokemon - welches Starterset soll ich kaufen?",
+    "type": "OOD",
+    "expected_answer_mode": "reject",
+    "notes": "Pokemon shopping - clearly out of domain"
+  }
+]

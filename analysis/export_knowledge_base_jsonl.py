@@ -18,32 +18,56 @@ except ModuleNotFoundError:
 
 
 def export_knowledge_base_jsonl(db_path: Path, output_path: Path) -> int:
-    """Export pages, assets and ISAweb datasets as JSONL records."""
+    """Export pages, assets and ISAweb datasets as JSONL records.
+
+    Streams large record types (isaweb_dataset) to disk to avoid OOM on
+    databases with millions of observations.
+    """
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    page_records = _page_records(conn)
-    asset_records = _asset_records(conn)
-    isaweb_records = _isaweb_records(conn)
-    metadata_records = _isaweb_metadata_records(conn)
-    release_records = _release_event_records(conn)
-    family_records = _dataset_family_records(conn)
-    records = []
-    records.extend(page_records)
-    records.extend(asset_records)
-    records.extend(isaweb_records)
-    records.extend(metadata_records)
-    records.extend(release_records)
-    records.extend(family_records)
-    records.extend(_chatbot_chunk_records(family_records, isaweb_records, asset_records))
-    records.extend(_page_chatbot_chunk_records(page_records))
-    conn.close()
+    count = 0
 
     with output_path.open("w", encoding="utf-8") as handle:
-        for record in records:
+        def _write(record: dict) -> None:
+            nonlocal count
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            count += 1
 
-    return len(records)
+        page_records = _page_records(conn)
+        asset_records = _asset_records(conn)
+        for r in page_records:
+            _write(r)
+        for r in asset_records:
+            _write(r)
+
+        # Stream isaweb records to disk; keep slim copies (no observations)
+        # for chatbot chunk generation.
+        isaweb_slim: list[dict] = []
+        for record in _iter_isaweb_records(conn):
+            _write(record)
+            isaweb_slim.append(record)
+
+        metadata_records = _isaweb_metadata_records(conn)
+        release_records = _release_event_records(conn)
+        for r in metadata_records:
+            _write(r)
+        for r in release_records:
+            _write(r)
+
+        # Stream family records to disk; keep slim copies for chatbot chunks.
+        family_slim: list[dict] = []
+        for record in _iter_dataset_family_records(conn):
+            _write(record)
+            family_slim.append(_slim_family_for_chunks(record))
+
+        for r in _chatbot_chunk_records(family_slim, isaweb_slim, asset_records):
+            _write(r)
+        for r in _page_chatbot_chunk_records(page_records):
+            _write(r)
+
+    conn.close()
+    return count
 
 
 def _page_records(conn: sqlite3.Connection) -> list[dict]:
@@ -148,7 +172,8 @@ def _asset_records(conn: sqlite3.Connection) -> list[dict]:
     return records
 
 
-def _isaweb_records(conn: sqlite3.Connection) -> list[dict]:
+def _iter_isaweb_records(conn: sqlite3.Connection):
+    """Yield isaweb_dataset records one at a time to avoid OOM."""
     rows = conn.execute(
         """
         SELECT id, dataset_key, hierid, lang, freq, title, source_url
@@ -157,7 +182,6 @@ def _isaweb_records(conn: sqlite3.Connection) -> list[dict]:
         """
     ).fetchall()
 
-    records = []
     for row in rows:
         dimensions = conn.execute(
             """
@@ -186,8 +210,7 @@ def _isaweb_records(conn: sqlite3.Connection) -> list[dict]:
             """,
             (row["hierid"], row["lang"]),
         ).fetchall()
-        records.append(
-            {
+        yield {
                 "record_type": "isaweb_dataset",
                 "id": row["dataset_key"],
                 "dataset_key": row["dataset_key"],
@@ -197,15 +220,7 @@ def _isaweb_records(conn: sqlite3.Connection) -> list[dict]:
                 "title": row["title"],
                 "source_url": row["source_url"],
                 "dimensions": _group_dimensions(dimensions),
-                "observations": [
-                    {
-                        "period": obs["period"],
-                        "value": obs["value"],
-                        "unit": obs["unit"],
-                        "series_label": obs["series_label"],
-                    }
-                    for obs in observations
-                ],
+                "observation_count": len(observations),
                 "latest_observation": _latest_observation(observations),
                 "latest_observations": _latest_observations_by_series(observations),
                 "page_contexts": [
@@ -222,8 +237,6 @@ def _isaweb_records(conn: sqlite3.Connection) -> list[dict]:
                     for context in page_contexts
                 ],
             }
-        )
-    return records
 
 
 def _isaweb_metadata_records(conn: sqlite3.Connection) -> list[dict]:
@@ -321,7 +334,8 @@ def _release_event_records(conn: sqlite3.Connection) -> list[dict]:
     ]
 
 
-def _dataset_family_records(conn: sqlite3.Connection) -> list[dict]:
+def _iter_dataset_family_records(conn: sqlite3.Connection):
+    """Yield dataset_family records one at a time to avoid OOM."""
     dataset_rows = conn.execute(
         """
         SELECT id, dataset_key, hierid, lang, freq, title, source_url
@@ -330,7 +344,6 @@ def _dataset_family_records(conn: sqlite3.Connection) -> list[dict]:
         """
     ).fetchall()
 
-    records = []
     for dataset_row in dataset_rows:
         dimensions = conn.execute(
             """
@@ -386,7 +399,7 @@ def _dataset_family_records(conn: sqlite3.Connection) -> list[dict]:
             conn,
             source_urls,
             asset_urls=[row["url"] for row in filtered_assets],
-        )
+        )[:10]
 
         primary_metadata = metadata_rows[0] if metadata_rows else None
         title = (
@@ -435,8 +448,7 @@ def _dataset_family_records(conn: sqlite3.Connection) -> list[dict]:
         latest_observation = _latest_observation(observations)
         latest_observations = _latest_observations_by_series(observations)
 
-        records.append(
-            {
+        yield {
                 "record_type": "dataset_family",
                 "id": f"dataset_family:{family_key}",
                 "family_key": family_key,
@@ -488,9 +500,28 @@ def _dataset_family_records(conn: sqlite3.Connection) -> list[dict]:
                     for context in page_contexts
                 ],
             }
-        )
 
-    return records
+
+def _slim_family_for_chunks(family: dict) -> dict:
+    """Keep only fields needed by _chatbot_chunk_records / _build_family_chunk_text."""
+    return {
+        "id": family["id"],
+        "family_key": family["family_key"],
+        "title": family.get("title"),
+        "latest_observation": family.get("latest_observation"),
+        "sources": family.get("sources"),
+        "source_page": family.get("source_page"),
+        "supporting_pages": [
+            {"url": p.get("url"), "title": p.get("title")}
+            for p in family.get("supporting_pages", [])
+        ],
+        "asset_documents": [
+            {"url": a.get("url")} for a in family.get("asset_documents", [])
+        ],
+        "isaweb_dataset": family.get("isaweb_dataset"),
+        "isaweb_metadata": family.get("isaweb_metadata"),
+        "release_events": family.get("release_events"),
+    }
 
 
 def _chatbot_chunk_records(
@@ -1427,11 +1458,8 @@ def _serialize_page_row(row: sqlite3.Row) -> dict:
         "content_type": row["content_type"],
         "fetched_at": row["fetched_at"],
         "title": row["title"],
-        "text": row["text_content"],
         "page_section": row["page_section"],
         "language": row["language"],
-        "extracted_at": row["extracted_at"],
-        "extractor_version": row["extractor_version"],
     }
 
 

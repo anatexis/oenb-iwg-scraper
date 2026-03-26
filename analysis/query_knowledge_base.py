@@ -19,6 +19,12 @@ QUERY_SYNONYMS = {
     "einlagenzinsen": ["einlagenzinssätze", "deposit rates", "deposit rate", "sparzinsen"],
     "rppi": ["residential property price index", "wohnimmobilienpreisindex"],
     "fsi": ["financial soundness indicators", "tier 1 capital", "indikatoren zur stabilität des finanzsektors"],
+    "geldmenge": ["monetary aggregate", "beitrag zu m3", "geldmengenaggregate", "money supply", "österreichischer beitrag zu m3"],
+    "inflation": ["consumer prices", "consumer price index", "inflation indicators", "verbraucherpreisindex", "hvpi", "hicp"],
+    "verbraucherpreisindex": ["consumer price index", "consumer prices", "hvpi", "hicp", "inflation indicators"],
+    "kreditvergabe": ["lending", "loans", "kredite", "lending rates", "kreditvolumen"],
+    "mindestreserve": ["minimum reserves", "reserve requirements", "mindestreservesatz"],
+    "bargeldumlauf": ["banknotes", "cash in circulation", "bargeld"],
 }
 
 PREFERRED_QUERY_PHRASES = {
@@ -29,10 +35,14 @@ PREFERRED_QUERY_PHRASES = {
     "kredit": ["lending rates"],
     "sparzinsen": ["deposit rates"],
     "einlagenzinsen": ["deposit rates"],
+    "geldmenge": ["beitrag zu m3", "geldmengenaggregate"],
+    "mindestreserve": ["mindestreserve-erfüllung", "mindestreserve-basis"],
+    "inflation": ["inflation indicators", "consumer prices"],
+    "verbraucherpreisindex": ["consumer price index"],
 }
 
 ROUTED_DOMAIN_TERMS = {
-    "monetary_policy": ["einlagenfazilität", "deposit facility", "policy rates", "key interest rates", "leitzins"],
+    "monetary_policy": ["einlagenfazilität", "deposit facility", "policy rates", "key interest rates", "leitzins", "mindestreserve", "minimum reserves", "beitrag zu m3", "geldmengenaggregate"],
     "interest_rates": ["key interest rates", "policy rates", "base and reference rates", "lending rates", "deposit rates"],
     "commodity_prices": ["gold", "gold price", "goldpreis", "commodity prices"],
     "real_estate": ["residential property price index", "rppi", "property prices", "immobilienpreise"],
@@ -117,7 +127,7 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
         preferred_title_hits = len({token for token in preferred_phrases if token in title})
         strong_hits = len({term for term in strong_terms if term in title or term in text or term in primary_url})
         preferred_record_boost = _preferred_record_boost(query, title, primary_url)
-        query_intent_boost = _query_intent_record_boost(routed_query, record, title=title, text=text, primary_url=primary_url)
+        query_intent_boost = _query_intent_record_boost(routed_query, record, title=title, text=text, primary_url=primary_url, source_preference=source_preference)
         score = (
             int(record.get("retrieval_score", 0))
             + token_hits * 50
@@ -259,21 +269,29 @@ def _preferred_record_boost(query: str, title: str, primary_url: str) -> int:
     return 0
 
 
-def _query_intent_record_boost(routed_query: dict | None, record: dict, *, title: str, text: str, primary_url: str) -> int:
+def _query_intent_record_boost(
+    routed_query: dict | None, record: dict, *, title: str, text: str, primary_url: str, source_preference: str = "primary",
+) -> int:
     if not routed_query:
         return 0
     query_intent = routed_query.get("query_intent")
     parent_record_type = record.get("parent_record_type")
+    # page_document chunks in the statistics (primary) KB are ISAweb portal
+    # pages — they must not receive intent boosts that would outrank
+    # dataset_family chunks.
+    is_page_in_primary_kb = parent_record_type == "page_document" and source_preference == "primary"
     boost = 0
     if query_intent == "release_lookup":
-        if "release" in title or "release" in text or "releasekalender" in primary_url:
+        if not is_page_in_primary_kb and ("release" in title or "release" in text or "releasekalender" in primary_url):
             boost += 900
-        if parent_record_type == "page_document":
+        if parent_record_type == "page_document" and source_preference == "secondary":
             boost += 250
     if query_intent == "navigation":
-        if any(term in title or term in text or term in primary_url for term in ("csv", "excel", "download", "tabelle", "zeitreihe")):
+        if not is_page_in_primary_kb and any(
+            term in title or term in text or term in primary_url for term in ("csv", "excel", "download", "tabelle", "zeitreihe")
+        ):
             boost += 700
-        if parent_record_type == "page_document":
+        if parent_record_type == "page_document" and source_preference == "secondary":
             boost += 200
         if parent_record_type == "dataset_family" and any(
             term in title or term in text for term in ("csv", "excel", "download")

@@ -10,6 +10,11 @@ DOMAIN_HINTS = {
         "policy rate",
         "main refinancing",
         "geldpolitik",
+        "mindestreserve",
+        "minimum reserve",
+        "beitrag zu m3",
+        "monetärstatistik",
+        "geldmengenaggregate",
     ],
     "interest_rates": [
         "interest rate",
@@ -63,6 +68,10 @@ DOMAIN_HINTS = {
         "external sector",
         "außenwirtschaft",
         "report=9.",
+        "target2",
+        "target2-securities",
+        "zahlungsbilanz",
+        "direktinvestition",
     ],
     "reserves_assets": [
         "gold reserve",
