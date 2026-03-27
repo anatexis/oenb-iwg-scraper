@@ -208,6 +208,8 @@ def _is_grounded_top_hit(query: str, routing: dict | None, hit: dict) -> bool:
         return False
     if hit.get("parent_record_type") == "dataset_family":
         return True
+    if routing.get("query_intent") == "navigation" and hit.get("parent_record_type") in ("page_document", "section_navigation"):
+        return True
     if routing.get("strategy") == "rag_first" and routing.get("domains") == ["website_general"] and float(
         routing.get("confidence") or 0.0
     ) < 0.55 and hit.get("parent_record_type") != "page_document":

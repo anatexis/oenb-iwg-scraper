@@ -609,6 +609,54 @@ def test_is_grounded_top_hit_rejects_asset_hits_for_website_general_routes():
     assert not _is_grounded_top_hit("Was schreibt die OeNB zu Frauen in Führungsfunktionen?", routing, hit)
 
 
+def test_grounded_nav_intent_accepts_page_document():
+    routing = {
+        "strategy": "rag_first",
+        "domains": ["website_general"],
+        "query_intent": "navigation",
+        "confidence": 0.25,
+    }
+    hit = {
+        "title": "Statistik",
+        "text": "Datenangebot",
+        "parent_record_type": "page_document",
+    }
+
+    assert _is_grounded_top_hit("Wo finde ich die Statistikdaten?", routing, hit)
+
+
+def test_grounded_nav_intent_accepts_section_navigation():
+    routing = {
+        "strategy": "rag_first",
+        "domains": ["website_general"],
+        "query_intent": "navigation",
+        "confidence": 0.25,
+    }
+    hit = {
+        "title": "Navigation",
+        "text": "Statistik Übersicht",
+        "parent_record_type": "section_navigation",
+    }
+
+    assert _is_grounded_top_hit("Wo finde ich die Statistikdaten?", routing, hit)
+
+
+def test_grounded_non_nav_still_requires_confidence():
+    routing = {
+        "strategy": "rag_first",
+        "domains": ["website_general"],
+        "query_intent": "fact_lookup",
+        "confidence": 0.25,
+    }
+    hit = {
+        "title": "something",
+        "text": "",
+        "parent_record_type": "isaweb_dataset",
+    }
+
+    assert not _is_grounded_top_hit("Was ist der aktuelle Leitzins?", routing, hit)
+
+
 def test_answer_chatbot_question_prioritizes_website_release_subanswer(monkeypatch, tmp_path: Path):
     stats_path = tmp_path / "data" / "statistics_production" / "knowledge_base_active.jsonl"
     full_path = tmp_path / "data" / "full_site_production" / "knowledge_base_active.jsonl"

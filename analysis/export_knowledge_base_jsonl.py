@@ -65,6 +65,8 @@ def export_knowledge_base_jsonl(db_path: Path, output_path: Path) -> int:
             _write(r)
         for r in _page_chatbot_chunk_records(page_records):
             _write(r)
+        for r in _section_navigation_records(conn):
+            _write(r)
 
     conn.close()
     return count
@@ -642,6 +644,121 @@ def _page_chatbot_chunk_records(page_records: list[dict]) -> list[dict]:
                 "retrieval_tier": "low",
             }
         )
+    return records
+
+
+def _section_navigation_records(conn: sqlite3.Connection) -> list[dict]:
+    """Generate section overview chunks from the website's page hierarchy.
+
+    For each page_section with enough pages, builds a single chatbot_chunk
+    that summarises the section's structure and sub-pages.  These records
+    carry concentrated topic keywords so token-based retrieval can match
+    broad navigation queries like "Wo finde ich Statistiken?".
+    """
+    _OENB_SUFFIX = re.compile(r"\s*-\s*Oesterreichische Nationalbank\s*\(OeNB\)\s*$")
+    MIN_PAGES = 3
+
+    rows = conn.execute(
+        """
+        SELECT p.url, pc.title, pc.page_section
+        FROM pages p
+        JOIN page_content pc ON pc.page_id = p.id
+        WHERE pc.page_section IS NOT NULL AND pc.page_section != ''
+          AND p.url LIKE 'https://www.oenb.at/%'
+          AND pc.title IS NOT NULL AND pc.title != ''
+        ORDER BY pc.page_section, LENGTH(p.url), p.url
+        """
+    ).fetchall()
+
+    # Group by section
+    sections: dict[str, list[dict]] = {}
+    for row in rows:
+        sec = row["page_section"]
+        sections.setdefault(sec, []).append(
+            {"url": row["url"], "title": row["title"]}
+        )
+
+    records: list[dict] = []
+    for section, pages in sorted(sections.items()):
+        if len(pages) < MIN_PAGES:
+            continue
+
+        # Clean titles: strip " - Oesterreichische Nationalbank (OeNB)"
+        def _clean(title: str) -> str:
+            return _OENB_SUFFIX.sub("", title).strip()
+
+        # Build sub-section hierarchy from URL paths.
+        # Find the section root directory from the first URL that contains
+        # the section name as a path segment.
+        section_lower = section.lower()
+        base_prefix = ""
+        for p in pages:
+            path = urlparse(p["url"]).path
+            segments = [s for s in path.split("/") if s]
+            for i, seg in enumerate(segments):
+                if seg.lower() == section_lower:
+                    base_prefix = "/" + "/".join(segments[: i + 1])
+                    break
+            if base_prefix:
+                break
+
+        # Group: top-level pages (depth 0-1 below section root) and sub-sections
+        top_pages: list[str] = []
+        sub_sections: dict[str, list[str]] = {}
+        seen_titles: set[str] = set()
+
+        for p in pages:
+            cleaned = _clean(p["title"])
+            if not cleaned or cleaned in seen_titles:
+                continue
+            seen_titles.add(cleaned)
+
+            path = urlparse(p["url"]).path
+            # Strip base prefix and the trailing filename
+            if base_prefix and path.startswith(base_prefix):
+                rel = path[len(base_prefix) :].strip("/")
+            else:
+                rel = path.strip("/")
+            parts = [s for s in rel.split("/") if s and not s.endswith(".html")]
+
+            if len(parts) == 0:
+                top_pages.append(cleaned)
+            elif len(parts) >= 1:
+                sub_key = parts[0].replace("-", " ").replace("_", " ")
+                # Capitalize first letter only, preserve rest
+                sub_key = sub_key[0].upper() + sub_key[1:] if sub_key else sub_key
+                sub_sections.setdefault(sub_key, []).append(cleaned)
+
+        # Build text
+        section_url = f"https://www.oenb.at/{section}/"
+        lines = [f"Bereich: {section} ({section_url})"]
+
+        if top_pages:
+            lines.append(f"Hauptseiten: {', '.join(top_pages[:20])}")
+
+        for sub_key in sorted(sub_sections):
+            titles = sub_sections[sub_key][:15]
+            lines.append(f"{sub_key}: {', '.join(titles)}")
+
+        text = "\n".join(lines)
+
+        records.append(
+            {
+                "record_type": "chatbot_chunk",
+                "id": f"chatbot_chunk:section_nav:{section}",
+                "parent_id": f"section_nav:{section}",
+                "parent_record_type": "section_navigation",
+                "family_key": None,
+                "chunk_kind": "section_overview",
+                "title": f"Bereich: {section}",
+                "text": text,
+                "sources": [],
+                "reference_urls": [section_url],
+                "retrieval_score": 200,
+                "retrieval_tier": "low",
+            }
+        )
+
     return records
 
 

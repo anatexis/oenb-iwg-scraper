@@ -11,6 +11,7 @@ from analysis.export_knowledge_base_jsonl import (
     _build_family_chunk_text,
     _latest_observation,
     _latest_observations_by_series,
+    _section_navigation_records,
     export_knowledge_base_jsonl,
 )
 from oenb_scraper.asset_store import store_asset_document
@@ -1702,3 +1703,82 @@ def test_latest_observations_by_series_keeps_multiple_current_columns():
             "series_label": "Reference rate",
         },
     ]
+
+
+def test_section_navigation_records_groups_pages_by_section():
+    """Section navigation records should group pages by page_section."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "pages.db"
+        conn = init_db(db_path)
+        run_id = start_crawl_run(conn, "https://www.oenb.at", "test-agent")
+
+        # Create 4 Statistik pages and 3 Geldpolitik pages
+        stat_pages = [
+            ("https://www.oenb.at/Statistik/Standardisierte-Tabellen.html", "Datenangebot - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Statistik/Charts/Chart-1.html", "Wechselkurs - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Statistik/Charts/Chart-5.html", "HVPI - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Statistik/research-desk.html", "Research Desk - Oesterreichische Nationalbank (OeNB)"),
+        ]
+        geld_pages = [
+            ("https://www.oenb.at/Geldpolitik/Ziele-der-Geldpolitik.html", "Ziele der Geldpolitik - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Geldpolitik/Umsetzung-der-Geldpolitik.html", "Umsetzung der Geldpolitik - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Geldpolitik/Umsetzung-der-Geldpolitik/Mindestreserve.html", "Mindestreserve - Oesterreichische Nationalbank (OeNB)"),
+        ]
+        for url, title in stat_pages + geld_pages:
+            store_page(conn, run_id, url, url, 200, "text/html", {}, b"<html></html>")
+            conn.execute(
+                "INSERT INTO page_content (page_id, title, text_content, page_section, language) "
+                "VALUES ((SELECT id FROM pages WHERE url = ?), ?, 'dummy text content here', ?, 'de')",
+                (url, title, "Statistik" if "Statistik" in url else "Geldpolitik"),
+            )
+        conn.commit()
+
+        records = _section_navigation_records(conn)
+        conn.close()
+
+        assert len(records) == 2
+        stat_rec = [r for r in records if "Statistik" in r["title"]][0]
+        geld_rec = [r for r in records if "Geldpolitik" in r["title"]][0]
+
+        # Check record structure
+        assert stat_rec["parent_record_type"] == "section_navigation"
+        assert stat_rec["chunk_kind"] == "section_overview"
+        assert stat_rec["retrieval_score"] == 200
+        assert "oenb.at/Statistik/" in stat_rec["reference_urls"][0]
+
+        # Check that titles appear in text (cleaned of OeNB suffix)
+        assert "Datenangebot" in stat_rec["text"]
+        assert "Wechselkurs" in stat_rec["text"]
+        assert "Research Desk" in stat_rec["text"]
+
+        # Check sub-sections appear
+        assert "Charts" in stat_rec["text"]
+
+        # Check Geldpolitik has sub-section
+        assert "Umsetzung der Geldpolitik" in geld_rec["text"]
+        assert "Mindestreserve" in geld_rec["text"]
+
+
+def test_section_navigation_records_skips_small_sections():
+    """Sections with fewer than 3 pages should be skipped."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "pages.db"
+        conn = init_db(db_path)
+        run_id = start_crawl_run(conn, "https://www.oenb.at", "test-agent")
+
+        # Only 2 pages — below threshold
+        for i, (url, title) in enumerate([
+            ("https://www.oenb.at/Tiny/page1.html", "Page 1 - Oesterreichische Nationalbank (OeNB)"),
+            ("https://www.oenb.at/Tiny/page2.html", "Page 2 - Oesterreichische Nationalbank (OeNB)"),
+        ]):
+            store_page(conn, run_id, url, url, 200, "text/html", {}, b"<html></html>")
+            conn.execute(
+                "INSERT INTO page_content (page_id, title, text_content, page_section, language) "
+                "VALUES ((SELECT id FROM pages WHERE url = ?), ?, 'dummy', 'Tiny', 'de')",
+                (url, title),
+            )
+        conn.commit()
+
+        records = _section_navigation_records(conn)
+        conn.close()
+        assert len(records) == 0

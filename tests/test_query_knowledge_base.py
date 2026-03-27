@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from analysis.query_knowledge_base import search_knowledge_base
+from analysis.query_knowledge_base import search_knowledge_base, _query_intent_record_boost
 
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
@@ -561,3 +561,184 @@ def test_search_knowledge_base_can_prioritize_secondary_download_page_for_naviga
     )
 
     assert results[0]["id"] == "page:bargeld-download"
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _query_intent_record_boost — navigation intent new boosts
+# ---------------------------------------------------------------------------
+
+
+def _make_routed(intent: str) -> dict:
+    return {"query_intent": intent, "domains": ["website_general"]}
+
+
+def test_navigation_page_document_secondary_gets_unconditional_500_boost():
+    """page_document in secondary KB gets +500 for navigation, even without download terms."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "page_document"},
+        title="zahlungsbilanz übersicht",
+        text="allgemeine informationen zur zahlungsbilanz",
+        primary_url="https://www.oenb.at/statistik/zahlungsbilanz.html",
+        source_preference="secondary",
+    )
+    # Existing +200 (secondary page_document) + new +500 = 700
+    assert boost == 700
+
+
+def test_navigation_page_document_secondary_with_download_terms_stacks():
+    """page_document with download terms stacks existing +700 and +200 with new +500."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "page_document"},
+        title="bargeldumlauf csv download",
+        text="download als csv oder excel",
+        primary_url="https://www.oenb.at/statistik/bargeld/download-csv.html",
+        source_preference="secondary",
+    )
+    # +700 (download terms) + +200 (secondary) + +500 (new unconditional) = 1400
+    assert boost == 1400
+
+
+def test_navigation_page_document_primary_kb_gets_no_page_boost():
+    """page_document in primary (statistics) KB must NOT get page boosts."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "page_document"},
+        title="isawebstat portal page",
+        text="some portal content",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    assert boost == 0
+
+
+def test_navigation_section_navigation_gets_600_boost():
+    """section_navigation chunks get +600 for navigation intent."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "section_navigation"},
+        title="statistik navigation",
+        text="links zu statistik-seiten",
+        primary_url="https://www.oenb.at/statistik/",
+        source_preference="secondary",
+    )
+    assert boost == 600
+
+
+def test_navigation_dataset_family_gets_minus_200_penalty():
+    """dataset_family gets -200 unconditional penalty in navigation (on top of any download-term penalty)."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "dataset_family"},
+        title="key interest rates",
+        text="latest observation: 2025 = 2.15 %",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    # No download terms, so only the new -200
+    assert boost == -200
+
+
+def test_navigation_dataset_family_with_download_terms_gets_both_penalties():
+    """dataset_family with download terms gets +700 (download terms, not page in primary)
+    -300 (existing download-term dataset_family penalty) -200 (new unconditional) = +200."""
+    boost = _query_intent_record_boost(
+        _make_routed("navigation"),
+        {"parent_record_type": "dataset_family"},
+        title="download csv data",
+        text="csv export of interest rates",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    # +700 (download terms, not is_page_in_primary_kb) - 300 (download-term penalty) - 200 (new unconditional) = 200
+    assert boost == 200
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _query_intent_record_boost — explanation intent (new block)
+# ---------------------------------------------------------------------------
+
+
+def test_explanation_page_document_secondary_gets_400_boost():
+    """page_document in secondary KB gets +400 for explanation intent."""
+    boost = _query_intent_record_boost(
+        _make_routed("explanation"),
+        {"parent_record_type": "page_document"},
+        title="was ist die zahlungsbilanz",
+        text="die zahlungsbilanz erfasst alle wirtschaftlichen transaktionen",
+        primary_url="https://www.oenb.at/statistik/zahlungsbilanz/erklaerung.html",
+        source_preference="secondary",
+    )
+    assert boost == 400
+
+
+def test_explanation_page_document_primary_kb_gets_no_boost():
+    """page_document in primary KB must NOT get explanation boost."""
+    boost = _query_intent_record_boost(
+        _make_routed("explanation"),
+        {"parent_record_type": "page_document"},
+        title="isawebstat portal",
+        text="portal content",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    assert boost == 0
+
+
+def test_explanation_section_navigation_gets_400_boost():
+    """section_navigation gets +400 for explanation intent."""
+    boost = _query_intent_record_boost(
+        _make_routed("explanation"),
+        {"parent_record_type": "section_navigation"},
+        title="statistik übersicht",
+        text="überblick über statistikbereiche",
+        primary_url="https://www.oenb.at/statistik/",
+        source_preference="secondary",
+    )
+    assert boost == 400
+
+
+def test_explanation_dataset_family_gets_minus_300_penalty():
+    """dataset_family gets -300 penalty for explanation intent."""
+    boost = _query_intent_record_boost(
+        _make_routed("explanation"),
+        {"parent_record_type": "dataset_family"},
+        title="key interest rates",
+        text="latest observation: 2025 = 2.15 %",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    assert boost == -300
+
+
+# ---------------------------------------------------------------------------
+# Ensure existing behavior is preserved
+# ---------------------------------------------------------------------------
+
+
+def test_release_lookup_unchanged():
+    """release_lookup intent is not affected by the new boosts."""
+    boost = _query_intent_record_boost(
+        _make_routed("release_lookup"),
+        {"parent_record_type": "page_document"},
+        title="release calendar for inflation statistics",
+        text="next release date for inflation",
+        primary_url="https://www.oenb.at/isawebstat/releasekalender/...",
+        source_preference="secondary",
+    )
+    # Existing: +900 (release in title) + +250 (secondary page_document)
+    assert boost == 1150
+
+
+def test_no_routed_query_returns_zero():
+    """No routed query means zero boost."""
+    boost = _query_intent_record_boost(
+        None,
+        {"parent_record_type": "page_document"},
+        title="anything",
+        text="anything",
+        primary_url="https://example.com",
+        source_preference="secondary",
+    )
+    assert boost == 0
