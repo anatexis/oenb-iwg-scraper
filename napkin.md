@@ -569,3 +569,30 @@ Für `query_intent == "navigation"`:
 | Section Navigation | ~10 (NAV) | +8-10 Cases |
 | Grounding lockern | ~5 (NAV not_found) | +3-5 Cases |
 | **Gesamt** | | **~50-55%** (von ~15%) |
+
+### Tatsächliches Ergebnis nach Fixes (2026-03-28)
+
+| Run | not_found | Änderung |
+|-----|-----------|----------|
+| pre-fix | 22/60 (37%) | Baseline |
+| fix-v1 (section_nav +600, explanation only) | **11/60 (18%)** | -11 |
+| fix-v2 (topic_overview mit dataset penalty) | 21/60 (35%) | **REGRESSION** |
+| fix-v3 (topic_overview ohne penalty) | **11/60 (18%)** | = fix-v1 |
+
+**Lektion:** `topic_overview` ist zu breit für dataset-Penaltys. Viele FACT-Fragen
+haben keinen passenden Page-Content → dataset_family ist der einzige brauchbare Hit.
+Penalty entfernen heißt: wenn keine Seite existiert, gewinnt weiterhin das Dataset.
+
+**Finale Boost-Tabelle:**
+
+| Intent | page_document | section_navigation | dataset_family |
+|--------|--------------|-------------------|---------------|
+| navigation | +500 | +300 | -200 |
+| explanation | +400 | +300 | -200 |
+| topic_overview | +250 | +150 | 0 |
+| release_lookup | +250 (secondary) | — | — |
+
+**Was nicht fixbar ist ohne mehr Daten:**
+- FACT 7/10 → datasets statt Erklärungen (full_site KB hat die Erklärseiten nicht)
+- TABLE 4/13 → section_nav statt spezifische Tabelle (Retrieval findet die richtige Seite nicht)
+- META 3/13 → kontextabhängige Fragen ("diese Tabelle") ohne Session-Kontext
