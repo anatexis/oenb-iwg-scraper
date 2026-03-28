@@ -613,8 +613,8 @@ def test_navigation_page_document_primary_kb_gets_no_page_boost():
     assert boost == 0
 
 
-def test_navigation_section_navigation_gets_600_boost():
-    """section_navigation chunks get +600 for navigation intent."""
+def test_navigation_section_navigation_gets_300_boost():
+    """section_navigation chunks get +300 for navigation intent."""
     boost = _query_intent_record_boost(
         _make_routed("navigation"),
         {"parent_record_type": "section_navigation"},
@@ -623,7 +623,7 @@ def test_navigation_section_navigation_gets_600_boost():
         primary_url="https://www.oenb.at/statistik/",
         source_preference="secondary",
     )
-    assert boost == 600
+    assert boost == 300
 
 
 def test_navigation_dataset_family_gets_minus_200_penalty():
@@ -686,8 +686,8 @@ def test_explanation_page_document_primary_kb_gets_no_boost():
     assert boost == 0
 
 
-def test_explanation_section_navigation_gets_400_boost():
-    """section_navigation gets +400 for explanation intent."""
+def test_explanation_section_navigation_gets_300_boost():
+    """section_navigation gets +300 for explanation intent."""
     boost = _query_intent_record_boost(
         _make_routed("explanation"),
         {"parent_record_type": "section_navigation"},
@@ -696,11 +696,11 @@ def test_explanation_section_navigation_gets_400_boost():
         primary_url="https://www.oenb.at/statistik/",
         source_preference="secondary",
     )
-    assert boost == 400
+    assert boost == 300
 
 
-def test_explanation_dataset_family_gets_minus_300_penalty():
-    """dataset_family gets -300 penalty for explanation intent."""
+def test_explanation_dataset_family_gets_minus_200_penalty():
+    """dataset_family gets -200 penalty for explanation intent."""
     boost = _query_intent_record_boost(
         _make_routed("explanation"),
         {"parent_record_type": "dataset_family"},
@@ -709,7 +709,38 @@ def test_explanation_dataset_family_gets_minus_300_penalty():
         primary_url="https://www.oenb.at/isawebstat/...",
         source_preference="primary",
     )
-    assert boost == -300
+    assert boost == -200
+
+
+def test_topic_overview_boosts_page_no_dataset_penalty():
+    """topic_overview boosts pages but does NOT penalize datasets."""
+    page_boost = _query_intent_record_boost(
+        _make_routed("topic_overview"),
+        {"parent_record_type": "page_document"},
+        title="was ist die zahlungsbilanz",
+        text="erklaerung",
+        primary_url="https://www.oenb.at/statistik/erklaerung.html",
+        source_preference="secondary",
+    )
+    family_boost = _query_intent_record_boost(
+        _make_routed("topic_overview"),
+        {"parent_record_type": "dataset_family"},
+        title="services trade",
+        text="observation",
+        primary_url="https://www.oenb.at/isawebstat/...",
+        source_preference="primary",
+    )
+    secnav_boost = _query_intent_record_boost(
+        _make_routed("topic_overview"),
+        {"parent_record_type": "section_navigation"},
+        title="statistik",
+        text="überblick",
+        primary_url="https://www.oenb.at/statistik/",
+        source_preference="secondary",
+    )
+    assert page_boost == 250
+    assert family_boost == 0  # No penalty for topic_overview
+    assert secnav_boost == 150
 
 
 # ---------------------------------------------------------------------------

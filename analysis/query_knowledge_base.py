@@ -301,16 +301,21 @@ def _query_intent_record_boost(
         if not is_page_in_primary_kb and parent_record_type == "page_document":
             boost += 500
         if parent_record_type == "section_navigation":
-            boost += 600
+            boost += 300
         if parent_record_type == "dataset_family":
             boost -= 200
     if query_intent == "explanation":
         if not is_page_in_primary_kb and parent_record_type == "page_document":
             boost += 400
         if parent_record_type == "section_navigation":
-            boost += 400
+            boost += 300
         if parent_record_type == "dataset_family":
-            boost -= 300
+            boost -= 200
+    if query_intent == "topic_overview":
+        if not is_page_in_primary_kb and parent_record_type == "page_document":
+            boost += 250
+        if parent_record_type == "section_navigation":
+            boost += 150
     return boost
 
 
