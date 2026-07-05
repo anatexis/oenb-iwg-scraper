@@ -687,6 +687,36 @@ Eval `eval_v2_report_v5_tryanyway.json`: **not_found 11/60 → 8/60 (13%)**
 - OOD-Abwehr intakt: alle 5 echten OOD-Cases weiterhin not_found
   (Zimmerpflanze, Rezept, Planche, Pokemon, "Wie geht es mir")
 
+## Automatisches Eval-Scoring (2026-07-05)
+
+Design: `docs/plans/2026-07-05-eval-scoring-design.md`. Deterministischer Post-hoc-Scorer
+(`analysis/score_chatbot_eval.py`): `expect`-Blöcke in der Fixture (url_patterns gegen Citations,
+Keyword-Stämme gegen Antworttext mit Umlaut-Folding, `reject` für OOD) → pass/partial/fail.
+
+```bash
+python -m analysis.score_chatbot_eval REPORT.json --baseline ALTER_REPORT.json
+```
+
+### Retro-Scoring der bestehenden Reports — das ehrliche Bild
+
+| Report | Score | pass | partial | fail | not_found (alt) |
+|--------|-------|------|---------|------|-----------------|
+| v4_recrawl | 0.258 | 8 | 15 | 37 | 11/60 |
+| v5_tryanyway | 0.267 | 8 | 16 | 36 | 8/60 |
+
+**Kernerkenntnis:** Die not_found-Metrik hat systematisch geschönt. Von den 8 Passes sind
+5 die OOD-Rejections — nur **3 von 55 Inhaltsfragen** bekommen eine wirklich richtige Antwort
+(u.a. table_001 Zinssätze). Der v5-Fallback holte 3 Cases aus not_found, aber 2 davon
+antworten weiterhin inhaltlich falsch (nur fact_005 wurde partial). NAV 0/18 pass,
+META 1/13, FACT 0/10 — die Misere liegt in falschen Antworten, nicht in fehlenden.
+
+**Authoring-Notizen:**
+- OeNB-URLs nutzen `auszenwirtschaft` (sz!) in Standardisierte-Tabellen, `aussenwirtschaft`
+  unter /meldewesen/ — Patterns müssen beide Varianten + EN (`external-sector`) abdecken.
+- Keywords als Stämme authoren ("Zins" statt "Zinssatz"), Matching foldet Umlaute (ä→ae, ß→ss).
+- AnaCredit (fact_006/008): 0 Treffer in der KB — echte Content-Lücke, Fail ist korrekt.
+- Generische Stämme ("statistik") erzeugen großzügige Partials (nav_001) — bewusster Trade-off.
+
 ### Bereinigt (2026-07-05)
 
 - Leere `data/statistics_production/statistics.db` (0 Bytes) gelöscht — war Artefakt des
