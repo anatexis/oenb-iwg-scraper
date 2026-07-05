@@ -9,6 +9,7 @@ from pathlib import Path
 
 from analysis.knowledge_base_cache import KnowledgeBaseCache
 from analysis.rag_answering import run_rag_answering
+from analysis.score_chatbot_eval import score_report
 
 
 def run_chatbot_eval_fixture(
@@ -52,6 +53,18 @@ def run_chatbot_eval_fixture(
         },
         "cases": output_cases,
     }
+
+    if any(case.get("expect") for case in output_cases):
+        scored = score_report(report)
+        report["summary"]["verdict_counts"] = scored["summary"]["verdict_counts"]
+        report["summary"]["by_type"] = scored["summary"]["by_type"]
+        report["summary"]["score"] = scored["summary"]["score"]
+        verdict_by_id = {c["id"]: c for c in scored["cases"]}
+        for case in output_cases:
+            scored_case = verdict_by_id.get(case.get("id"))
+            if scored_case:
+                case["verdict"] = scored_case["verdict"]
+                case["verdict_reasons"] = scored_case["reasons"]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
