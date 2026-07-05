@@ -596,3 +596,102 @@ Penalty entfernen heißt: wenn keine Seite existiert, gewinnt weiterhin das Data
 - FACT 7/10 → datasets statt Erklärungen (full_site KB hat die Erklärseiten nicht)
 - TABLE 4/13 → section_nav statt spezifische Tabelle (Retrieval findet die richtige Seite nicht)
 - META 3/13 → kontextabhängige Fragen ("diese Tabelle") ohne Session-Kontext
+
+---
+
+## Full-Site Re-Crawl (2026-03-29)
+
+### Warum
+
+Eval-Bottleneck ist Content-Coverage, nicht Ranking. FACT-Fragen wie "Was ist eine Zahlungsbilanz?"
+bekommen datasets statt Erklärungen weil die passende Website-Seite (z.B.
+`/Statistik/aussenwirtschaftsstatistik.html`) nicht in der full_site KB ist.
+
+Aktueller Crawl: 3.569 Seiten, davon 449 unter /Statistik/. Viele Erklärungs- und Übersichtsseiten
+fehlen — der BFS-Crawl war nicht tief genug oder wurde zu früh gestoppt.
+
+### IWG-Daten helfen nicht
+
+IWG-Crawler (11.657 Items) hat 2.697 URLs die nicht im full_site Crawl sind — aber 2.278 davon
+sind ISAweb-Portale (haben wir über ISAweb Client). Nur ~200 Publikationsseiten und ~10 Statistikseiten
+sind neu. Das Inventar ist ein Katalog (URL+Typ+Titel), kein Content.
+
+### Ziel
+
+Frischer BFS-Crawl mit bestehenden 26 Start-URLs + `skip_isaweb=true`. Erwartung: 5.000-8.000
+Seiten statt 3.569 wenn die Tiefe ausreicht. Danach: KB re-exportieren, Eval re-runnen.
+
+### Crawl-Befehl (wie in Full-Site-Crawl Analyse oben)
+
+```bash
+cd scraper && python -m scrapy crawl oenb -a skip_isaweb=true \
+  -s 'ITEM_PIPELINES={"oenb_scraper.pipelines.DeduplicationPipeline": 100, "oenb_scraper.pipelines.FileSizePipeline": 200, "oenb_scraper.pipelines.SQLitePipeline": 400}' \
+  -s "SQLITE_DB_PATH=../data/full_site_production/pages.db"
+```
+
+**Wichtig:** Bestehende DB wird inkrementell erweitert (body_hash 3-Wege-Logik), nicht gelöscht.
+
+### Pipeline nach dem Crawl
+
+Der Crawler schreibt nur `pages` + `page_bodies`. Bei geänderten Seiten wird `page_content` gelöscht
+(body_hash changed → `DELETE FROM page_content WHERE page_id = ?`), aber **nicht** neu befüllt.
+Die Content-Extraction ist ein separater Schritt:
+
+```bash
+# 1. Text-Extraction (füllt page_content für alle Seiten ohne Content)
+python -m analysis.extract_text data/full_site_production/pages.db
+
+# 2. Full-Site KB exportieren (Runtime liest knowledge_base_active.jsonl!)
+python -m analysis.export_knowledge_base_jsonl \
+  data/full_site_production/pages.db \
+  data/full_site_production/knowledge_base_active.jsonl
+
+# 3. Statistics KB re-exportieren
+#    ACHTUNG: Die Statistik-DB heißt pages.db, NICHT statistics.db!
+#    (Der frühere Doku-Fehler hier hat eine leere statistics.db erzeugt.)
+#    Die CLI nimmt Positionsargumente — --db/--output/--full-site-db existieren nicht.
+python -m analysis.export_knowledge_base_jsonl \
+  data/statistics_production/pages.db \
+  data/statistics_production/knowledge_base_active.jsonl
+
+# 4. Eval laufen lassen
+python -m analysis.run_chatbot_eval
+```
+
+### Erkenntnis: Conditional Requests fehlen
+
+Die DB hat `etag` + `last_modified` Spalten, aber beide sind immer NULL — die Pipeline übergibt
+sie nicht an `store_page()`, und der Spider sendet keine `If-None-Match`/`If-Modified-Since` Headers.
+Jede bekannte Seite wird komplett neu heruntergeladen nur für den body_hash-Vergleich.
+→ Zukünftiges Feature: Conditional Requests würden Re-Crawls um Faktor 5-10x beschleunigen.
+
+---
+
+## Eval v4 (Re-Crawl) & v5 (try-anyway Fallback) — 2026-04-01/02
+
+### v4: Re-Crawl allein brachte nichts
+
+Full-Site Re-Crawl am 2026-04-01 (pages.db 325 MB, KB 67 MB) + beide KBs re-exportiert.
+Eval `eval_v2_report_v4_recrawl.json`: **not_found blieb bei 11/60 (18%)** — identisch zu fix-v3.
+Der Coverage-Zuwachs allein löste die verbleibenden Misses nicht.
+
+### v5: OOD-Rejection-Fallback in hybrid_retrieval.py
+
+Änderung: Wenn der Router `reject_or_clarify` sagt, trotzdem Retrieval versuchen (`rag_first`).
+Nur wenn 0 Hits kommen, bleibt die Rejection bestehen. Grund: Der LLM-Router (llama3.1:8b)
+klassifiziert in-scope Queries gelegentlich fälschlich als OOD.
+
+Eval `eval_v2_report_v5_tryanyway.json`: **not_found 11/60 → 8/60 (13%)**
+- Neu beantwortet: fact_005 (Leistungs-/Kapitalbilanz), table_008 (Wertpapierbestände),
+  pub_007 (Publikationsarchiv)
+- OOD-Abwehr intakt: alle 5 echten OOD-Cases weiterhin not_found
+  (Zimmerpflanze, Rezept, Planche, Pokemon, "Wie geht es mir")
+
+### Bereinigt (2026-07-05)
+
+- Leere `data/statistics_production/statistics.db` (0 Bytes) gelöscht — war Artefakt des
+  falschen Doku-Befehls (SQLite legt beim Öffnen eine leere DB an).
+- Getrackte `.pyc`-Dateien aus Git entfernt (`git rm --cached`), waren vor dem
+  `.gitignore`-Eintrag committed worden.
+- `stopwordsiso` fehlte im venv → 8 Test-Module kollabierten beim Import. Nachinstalliert,
+  445 Tests grün.

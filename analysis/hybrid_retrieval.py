@@ -30,12 +30,27 @@ def retrieve_hybrid(
         knowledge_base_cache=knowledge_base_cache,
     )
     if routing.get("strategy") == "reject_or_clarify":
-        return {
-            "hits": [],
-            "confidence": 0.0,
-            "routing": routing,
-            "subquery_results": [],
-        }
+        # Try retrieval anyway — the LLM router (especially small models)
+        # sometimes misclassifies in-scope queries as out-of-scope.
+        # If we find hits, override the rejection.
+        fallback_routing = {**routing, "strategy": "rag_first"}
+        fallback_hits = search_knowledge_base(
+            query=query,
+            primary_path=secondary_path or primary_path,
+            secondary_path=primary_path if secondary_path else None,
+            limit=limit,
+            routed_query=fallback_routing,
+            knowledge_base_cache=knowledge_base_cache,
+        )
+        if fallback_hits:
+            routing = fallback_routing
+        else:
+            return {
+                "hits": [],
+                "confidence": 0.0,
+                "routing": routing,
+                "subquery_results": [],
+            }
 
     search_primary = primary_path
     search_secondary = secondary_path
