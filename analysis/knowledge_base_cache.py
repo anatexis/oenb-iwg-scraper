@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from analysis.kb_index import has_index as _has_kb_index
+from analysis.kb_index import record_by_id as _index_record_by_id
+
 
 class KnowledgeBaseCache:
     """Load JSONL knowledge-base files once and reuse them across queries."""
@@ -37,5 +40,11 @@ class KnowledgeBaseCache:
         if path is None or not record_id or not path.exists():
             return None
         normalized = path.resolve()
+        if normalized in self._record_index_by_path:
+            return self._record_index_by_path[normalized].get(str(record_id))
+        if _has_kb_index(normalized):
+            # Point lookup via the FTS index sidecar — avoids loading the
+            # whole JSONL (2+ GB for the statistics KB) into memory.
+            return _index_record_by_id(normalized, record_id)
         self.records(normalized)
         return self._record_index_by_path[normalized].get(str(record_id))

@@ -7,6 +7,10 @@ import re
 from pathlib import Path
 
 from analysis.domain_gating import filter_records_for_route
+from analysis.kb_index import fold_text as _fold
+from analysis.kb_index import has_index as kb_index_available
+from analysis.kb_index import is_error_page_chunk as _is_error_page_chunk
+from analysis.kb_index import search_candidates as kb_index_search_candidates
 from analysis.query_router import route_query
 from analysis.text_stopwords import is_stopword
 
@@ -99,10 +103,15 @@ def _matching_chunk_records(
     query_tokens = _expanded_query_tokens(query, routed_query)
     strong_terms = _strong_match_terms(routed_query)
     records: list[dict] = []
-    iter_records = knowledge_base_cache.records(path) if knowledge_base_cache is not None else None
-    if iter_records is None:
-        with path.open("r", encoding="utf-8") as handle:
-            iter_records = [json.loads(line) for line in handle if line.strip()]
+    if kb_index_available(path):
+        # FTS5 candidate generation: BM25-ranked top slice instead of a full
+        # scan. Downstream filtering stays identical to the linear path.
+        iter_records = kb_index_search_candidates(path, [*query_tokens, *strong_terms])
+    else:
+        iter_records = knowledge_base_cache.records(path) if knowledge_base_cache is not None else None
+        if iter_records is None:
+            with path.open("r", encoding="utf-8") as handle:
+                iter_records = [json.loads(line) for line in handle if line.strip()]
     for record in iter_records:
         if record.get("record_type") != "chatbot_chunk":
             continue
@@ -114,16 +123,11 @@ def _matching_chunk_records(
     return records
 
 
-_ERROR_TITLE_MARKERS = ("fehlerseite", "403 forbidden", "404 not found", "page not found")
-
-
-def _is_error_page_chunk(record: dict) -> bool:
-    """Crawled 403/404 responses ended up in the KB — never surface them."""
-    title = (record.get("title") or "").lower()
-    text = (record.get("text") or "").lower()
-    if any(title.startswith(marker) or marker in title for marker in _ERROR_TITLE_MARKERS):
+def _token_in(token: str, text: str) -> bool:
+    """Substring match with mild German inflection handling (dative -n)."""
+    if token in text:
         return True
-    return text.startswith("403 forbidden") or text.startswith("404 not found")
+    return len(token) > 4 and token.endswith("n") and token[:-1] in text
 
 
 def _rank_hits(records: list[dict], *, query: str, source_preference: str, routed_query: dict | None = None) -> list[dict]:
@@ -132,12 +136,14 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
     strong_terms = set(_strong_match_terms(routed_query))
     ranked = []
     for record in records:
-        title = (record.get("title") or "").lower()
-        text = _rankable_text(record).lower()
-        primary_url = _primary_reference_url(record).lower()
-        token_hits = len({token for token in query_tokens if token in title or token in text})
-        title_hits = len({token for token in query_tokens if token in title})
-        phrase_title_hits = len({token for token in query_tokens if " " in token and token in title})
+        title = _fold(record.get("title") or "")
+        text = _fold(_rankable_text(record))
+        primary_url = _fold(_primary_reference_url(record))
+        token_hits = len({token for token in query_tokens if _token_in(token, title) or _token_in(token, text)})
+        matched_title_tokens = {token for token in query_tokens if _token_in(token, title)}
+        title_hits = len(matched_title_tokens)
+        specificity_bonus = sum(max(0, len(token) - 6) * 12 for token in matched_title_tokens)
+        phrase_title_hits = len({token for token in query_tokens if " " in token and _token_in(token, title)})
         preferred_title_hits = len({token for token in preferred_phrases if token in title})
         strong_hits = len({term for term in strong_terms if term in title or term in text or term in primary_url})
         preferred_record_boost = _preferred_record_boost(query, title, primary_url)
@@ -146,6 +152,7 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
             int(record.get("retrieval_score", 0))
             + token_hits * 50
             + title_hits * 80
+            + specificity_bonus
             + phrase_title_hits * 250
             + preferred_title_hits * 500
             + strong_hits * 600
@@ -172,7 +179,7 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
 
 def _query_tokens(query: str) -> list[str]:
     return [
-        token
+        _fold(token)
         for token in re.findall(r"[a-zA-Z0-9äöüÄÖÜß]{3,}", query.lower())
         if not is_stopword(token)
     ]
@@ -184,13 +191,13 @@ def _expanded_query_tokens(query: str, routed_query: dict | None = None) -> list
     seen = set(tokens)
     for token in tokens:
         for synonym in QUERY_SYNONYMS.get(token, []):
-            synonym_lower = synonym.lower()
+            synonym_lower = _fold(synonym)
             if synonym_lower not in seen:
                 expanded.append(synonym_lower)
                 seen.add(synonym_lower)
     if routed_query:
         for term in _routing_terms(routed_query):
-            term_lower = term.lower()
+            term_lower = _fold(term)
             if term_lower not in seen:
                 expanded.append(term_lower)
                 seen.add(term_lower)
@@ -202,7 +209,7 @@ def _preferred_query_phrases(query: str) -> list[str]:
     seen: set[str] = set()
     for token in _query_tokens(query):
         for phrase in PREFERRED_QUERY_PHRASES.get(token, []):
-            phrase_lower = phrase.lower()
+            phrase_lower = _fold(phrase)
             if phrase_lower not in seen:
                 phrases.append(phrase_lower)
                 seen.add(phrase_lower)
@@ -236,7 +243,7 @@ def _strong_match_terms(routed_query: dict | None) -> list[str]:
     terms: list[str] = []
     seen: set[str] = set()
     for term in _routing_terms(routed_query):
-        normalized = term.lower().strip()
+        normalized = _fold(term).strip()
         if normalized and not is_stopword(normalized) and normalized not in seen:
             terms.append(normalized)
             seen.add(normalized)
@@ -246,11 +253,13 @@ def _strong_match_terms(routed_query: dict | None) -> list[str]:
 def _is_candidate_match(haystack: str, query_tokens: list[str], strong_terms: list[str]) -> bool:
     if any(term in haystack for term in strong_terms):
         return True
-    token_hits = [token for token in query_tokens if token in haystack]
+    token_hits = [token for token in query_tokens if _token_in(token, haystack)]
     if not token_hits:
         return False
     if len(query_tokens) <= 3:
-        return True
+        # Single-hit leniency only for specific tokens — short generic words
+        # ("beste") must not qualify a record on their own.
+        return any(len(token) >= 6 for token in token_hits) or len(token_hits) >= 2
     return len(token_hits) >= 2
 
 
@@ -260,16 +269,18 @@ def _primary_reference_url(record: dict) -> str:
 
 
 def _search_haystack(record: dict) -> str:
-    return " ".join(
-        str(part)
-        for part in (
-            record.get("title"),
-            _rankable_text(record),
-            _primary_reference_url(record),
-            " ".join(record.get("sources", [])),
+    return _fold(
+        " ".join(
+            str(part)
+            for part in (
+                record.get("title"),
+                _rankable_text(record),
+                _primary_reference_url(record),
+                " ".join(record.get("sources", [])),
+            )
+            if part
         )
-        if part
-    ).lower()
+    )
 
 
 def _preferred_record_boost(query: str, title: str, primary_url: str) -> int:

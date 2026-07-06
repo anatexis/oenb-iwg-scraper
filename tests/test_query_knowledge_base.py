@@ -974,3 +974,87 @@ def test_explicit_table_request_keeps_dataset_preference_for_navigation():
     )
     assert dataset_boost >= 0, "no dataset penalty when the query asks for a table"
     assert page_boost < 800, "no full page boost when the query asks for a table"
+
+
+def test_ascii_query_tokens_match_umlaut_titles(tmp_path: Path):
+    # Queries are typed in ASCII ("oesterreichisch", "Zinssaetze") while KB
+    # titles carry real umlauts — scoring must fold both sides.
+    site_kb = tmp_path / "site.jsonl"
+    records = [
+        _nav_page_chunk(
+            "chunk:target",
+            "Auslandsverschuldung der österreichischen Volkswirtschaft",
+            "https://www.oenb.at/statistik/auszenwirtschaft/auslandsverschuldung.html",
+        ),
+        _nav_page_chunk(
+            "chunk:noise",
+            "Statistiken - Daten und Analysen Q3-04 - Oesterreichische Nationalbank",
+            "https://www.oenb.at/publikationen/statistik/archiv.html",
+        ),
+    ]
+    site_kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    results = search_knowledge_base(
+        query="Wo finde ich Daten zur oesterreichischen Auslandsverschuldung?",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert results and results[0]["id"] == "chunk:target"
+
+
+def test_umlaut_only_match_still_found_without_index(tmp_path: Path):
+    site_kb = tmp_path / "site.jsonl"
+    records = [
+        _nav_page_chunk("chunk:zins", "Zinssätze aktuell",
+                        "https://www.oenb.at/statistik/zinsen.html"),
+    ]
+    site_kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    results = search_knowledge_base(
+        query="Zinssaetze",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert [r["id"] for r in results] == ["chunk:zins"]
+
+
+def test_folded_stopwords_do_not_match_folded_text(tmp_path: Path):
+    # OOD fixture queries write "fuer" (ASCII). After umlaut folding the
+    # record text contains "fuer" everywhere — folded stopwords must be
+    # dropped from the query tokens or every German record matches.
+    site_kb = tmp_path / "site.jsonl"
+    unrelated = _nav_page_chunk(
+        "chunk:unrelated",
+        "Geschäftsstrukturdaten für Kreditinstitute",
+        "https://www.oenb.at/statistik/kreditinstitute.html",
+    )
+    unrelated["text"] = "Für die bestehenden Kreditinstitute gelten Meldepflichten."
+    site_kb.write_text(json.dumps(unrelated), encoding="utf-8")
+    results = search_knowledge_base(
+        query="Was ist die beste Trainingsmethode fuer einen Planche?",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert results == []
+
+
+def test_inflected_query_token_matches_title_stem(tmp_path: Path):
+    # "Zinssaetzen" (dative) must still hit the title "Zinssätze".
+    site_kb = tmp_path / "site.jsonl"
+    records = [
+        _nav_page_chunk("chunk:zins", "Basis- und Referenzzinssätze",
+                        "https://www.oenb.at/statistik/zinsen.html"),
+    ]
+    site_kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    results = search_knowledge_base(
+        query="Tabelle mit oesterreichischen Zinssaetzen",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert [r["id"] for r in results] == ["chunk:zins"]
