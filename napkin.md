@@ -745,6 +745,39 @@ Router-Entscheidungen → kein LLM nötig. Aber: ~6h pro Run wenn der Crawler pa
 - table_002: Hits mit Score 2370 vorhanden, trotzdem not_found — **Grounding-Gate verwirft
   Top-Hit ohne Fall-through zu den nächsten Hits** (chatbot_answering). Eigener Bug.
 
+## FTS5-Index + Umlaut-Folding (2026-07-06, Commits 977d8c5, 9c683de)
+
+**analysis/kb_index.py:** Sidecar-Index `KB.jsonl.index.db` (FTS5 über Chunks, umlaut-gefoldet,
+Fehlerseiten ausgeschlossen; records-Tabelle für ID-Lookups). Retrieval nutzt ihn als
+BM25-Kandidatengenerator, Answering löst Parents darüber auf (kein 2,2-GB-RAM-Load mehr).
+**60-Case-Replay: 6h → 20 Sekunden.**
+
+**⚠️ Nach jedem KB-Export Index neu bauen:** `python -m analysis.kb_index KB.jsonl`
+(gleiche Falle wie chart_synonyms.json — ohne Rebuild sucht das Retrieval im alten Stand.
+Ohne Index-Datei: automatischer Fallback auf linearen Scan = wieder langsam.)
+
+**Score-Verlauf (Replay, v5-Routings):**
+
+| Run | Score | Was |
+|-----|-------|-----|
+| v5 | 0.267 | Baseline (try-anyway Fallback) |
+| v7 | 0.283 | Portal-Fix, Query-gated Boosts, Fehlerseiten-Filter |
+| v8 | 0.292 | + FTS-Kandidaten (Parität, 0 Regressionen) + Grounding-Fall-through |
+| v10 | **0.333** | + Umlaut-Folding im Scoring, gefoldete Stopwords, Flexions-Matching, Spezifitäts-Bonus |
+
+**Die große Entdeckung:** Eval-Queries sind ASCII getippt („oesterreichischen", „Zinssaetzen"),
+KB-Titel haben echte Umlaute — das Scoring verglich rohe Strings, diese Match-Klasse fehlte
+überall. Folgefehler beim Fixen: „fuer" wurde durch Folding zum Universal-Match (OOD-Bruch!)
+→ gefoldete Stopwords; „Zinssaetzen" (Dativ) ≠ „Zinssätze" → mildes Flexions-Matching (-n).
+
+**Bekannte Grenzen (nächste Hebel):**
+- pub_001: Längen-als-IDF-Proxy scheitert an langen-aber-häufigen Tokens
+  („oesterreichischen") → echter BM25-Blend aus `_bm25_rank` (liegt schon an jedem
+  Kandidaten) statt Längen-Proxy.
+- fact_005: „Unterschied X vs Y"-Fragen brauchen COMPARE-Answering (beide Seiten nennen),
+  Retrieval liefert inzwischen den richtigen Treffer.
+- NAV weiter 1/18 pass (viele partial): Seiten-Relevanz untereinander braucht BM25-Blend.
+
 ### Bereinigt (2026-07-05)
 
 - Leere `data/statistics_production/statistics.db` (0 Bytes) gelöscht — war Artefakt des
