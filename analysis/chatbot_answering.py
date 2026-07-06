@@ -63,7 +63,17 @@ def answer_chatbot_question(
             response["agentic_result"] = agentic_result
         return response
 
-    if not _is_grounded_top_hit(query, retrieval_payload.get("routing"), hits[0]):
+    # Fall through to the first grounded hit — a rejected top hit must not
+    # hide grounded answers further down the ranking.
+    grounded_index = next(
+        (
+            index
+            for index, hit in enumerate(hits)
+            if _is_grounded_top_hit(query, retrieval_payload.get("routing"), hit)
+        ),
+        None,
+    )
+    if grounded_index is None:
         response = {
             "query": query,
             "answer_type": "not_found",
@@ -77,6 +87,8 @@ def answer_chatbot_question(
             response["routing"] = retrieval_payload.get("routing")
             response["agentic_result"] = agentic_result
         return response
+    if grounded_index:
+        hits = [hits[grounded_index], *hits[:grounded_index], *hits[grounded_index + 1 :]]
 
     routing = retrieval_payload.get("routing") or {}
     if retrieval_payload.get("subquery_results") and _should_render_subquery_answers(query, routing):

@@ -925,3 +925,81 @@ def test_answer_chatbot_question_prioritizes_website_navigation_subanswer(monkey
 
     assert answer["answer_type"] == "multi_part"
     assert answer["answer"].startswith("Bargeldumlauf CSV Download.")
+
+
+def test_ungrounded_top_hit_falls_through_to_next_grounded_hit(tmp_path, monkeypatch):
+    """A rejected top hit must not produce not_found when a later hit is grounded."""
+    routing = {
+        "strategy": "rag_first",
+        "domains": ["website_general"],
+        "query_intent": "topic_overview",
+        "confidence": 0.3,
+    }
+    asset_hit = {
+        "id": "chunk:asset",
+        "parent_id": "asset:1",
+        "parent_record_type": "asset_document",
+        "title": "Arbeitsblatt (PDF)",
+        "text": "Asset document.",
+        "reference_urls": ["https://www.oenb.at/dam/x.pdf"],
+        "source_preference": "secondary",
+    }
+    dataset_hit = {
+        "id": "chunk:inflation",
+        "parent_id": "family:inflation",
+        "parent_record_type": "dataset_family",
+        "title": "Selected inflation indicators",
+        "text": "Inflation indicators for Austria.",
+        "reference_urls": ["https://www.oenb.at/isawebstat/stabfrage/createReport?report=6.6"],
+        "source_preference": "primary",
+    }
+
+    def fake_retrieve(query, **kwargs):
+        return {
+            "hits": [asset_hit, dataset_hit],
+            "confidence": 0.6,
+            "routing": routing,
+            "subquery_results": [],
+        }
+
+    monkeypatch.setattr("analysis.chatbot_answering.retrieve_chatbot_knowledge", fake_retrieve)
+
+    answer = answer_chatbot_question(
+        "Gibt es Daten zur Inflation?",
+        base_dir=tmp_path,
+        primary_path=tmp_path / "stats.jsonl",
+        secondary_path=tmp_path / "site.jsonl",
+    )
+    assert answer["answer_type"] != "not_found"
+    assert answer["citations"][0]["url"].endswith("report=6.6")
+
+
+def test_all_ungrounded_hits_still_produce_not_found(tmp_path, monkeypatch):
+    routing = {
+        "strategy": "rag_first",
+        "domains": ["website_general"],
+        "query_intent": "topic_overview",
+        "confidence": 0.3,
+    }
+    asset_hit = {
+        "id": "chunk:asset",
+        "parent_id": "asset:1",
+        "parent_record_type": "asset_document",
+        "title": "Arbeitsblatt (PDF)",
+        "text": "Asset document.",
+        "reference_urls": ["https://www.oenb.at/dam/x.pdf"],
+        "source_preference": "secondary",
+    }
+
+    def fake_retrieve(query, **kwargs):
+        return {"hits": [asset_hit], "confidence": 0.2, "routing": routing, "subquery_results": []}
+
+    monkeypatch.setattr("analysis.chatbot_answering.retrieve_chatbot_knowledge", fake_retrieve)
+
+    answer = answer_chatbot_question(
+        "Gibt es Daten zur Inflation?",
+        base_dir=tmp_path,
+        primary_path=tmp_path / "stats.jsonl",
+        secondary_path=tmp_path / "site.jsonl",
+    )
+    assert answer["answer_type"] == "not_found"
