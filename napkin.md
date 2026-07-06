@@ -717,6 +717,34 @@ META 1/13, FACT 0/10 — die Misere liegt in falschen Antworten, nicht in fehlen
 - AnaCredit (fact_006/008): 0 Treffer in der KB — echte Content-Lücke, Fail ist korrekt.
 - Generische Stämme ("statistik") erzeugen großzügige Partials (nav_001) — bewusster Trade-off.
 
+## Ranking-Fixes v6/v7 via Routing-Replay (2026-07-06)
+
+**Replay-Modus:** `run_chatbot_eval --replay-routing ALTER_REPORT.json` nutzt gespeicherte
+Router-Entscheidungen → kein LLM nötig. Aber: ~6h pro Run wenn der Crawler parallel läuft
+(2,2-GB-KB in RAM + 60 Full-Scans + Swap-Druck). Kein schneller Loop — FTS5 bleibt nötig.
+
+| Run | Score | pass/partial/fail | Änderung |
+|-----|-------|-------------------|----------|
+| v5 (Baseline) | 0.267 | 8/16/36 | — |
+| v6 (Portal-Fix + Query-gated Download-Boost + Page +800) | 0.233 | 10/8/42 | **REGRESSION** |
+| v7 (+ Fehlerseiten-Filter, isawebstat/-Portale, Tabellen-Query-Ausnahme) | **0.283** | 11/12/37 | +4 verbessert, −3 |
+
+**v6-Lektionen (alle in v7 gefixt):**
+1. KB enthält 403/404-Seiten als page_documents („Fehlerseite - OeNB") — „seite" matcht
+   als Substring → gewannen NAV-Queries. Retrieval filtert sie jetzt; **KB-Export sollte
+   sie beim nächsten Re-Export auch ausschließen** (status_code != 200).
+2. Portal-Erkennung braucht alle isawebstat/-URLs (createChart, releasekalender), nicht
+   nur stabfrage. release_lookup boostet releasekalender weiterhin bewusst.
+3. Query sagt „Tabelle/Zeitreihe" → User will ein Dataset → Page-vs-Dataset-Rebalance aus.
+
+**Verbleibende v7-Regressionen vs v5 — Diagnose:**
+- nav_006/table_009: Alte Archiv-Ausgaben („Statistiken - Daten und Analysen Q3-04", 2004!)
+  matchen generische Tokens „daten"+„statistik" und stauen sich bei 1080. Fehlendes
+  IDF-Gewicht: „auslandsverschuldung" zählt gleich viel wie „daten". → BM25/FTS5, keine
+  weitere Handheuristik.
+- table_002: Hits mit Score 2370 vorhanden, trotzdem not_found — **Grounding-Gate verwirft
+  Top-Hit ohne Fall-through zu den nächsten Hits** (chatbot_answering). Eigener Bug.
+
 ### Bereinigt (2026-07-05)
 
 - Leere `data/statistics_production/statistics.db` (0 Bytes) gelöscht — war Artefakt des
