@@ -103,7 +103,6 @@ class OenbSpider(scrapy.Spider):
         self.frontier_kinds = self._parse_frontier_kinds(frontier_kinds)
         self.isaweb_focus = self._as_bool(isaweb_focus)
         self.skip_isaweb = self._as_bool(skip_isaweb)
-        self._known_urls: set[str] = set()
         if section:
             # Normalize: remove .html, ensure starts with /
             section = section.replace(".html", "").strip("/")
@@ -112,8 +111,6 @@ class OenbSpider(scrapy.Spider):
             self.logger.info(f"Section filter active: only crawling URLs under {self.section_filter}")
 
     def start_requests(self):
-        self._load_known_urls()
-
         frontier_urls = self._get_frontier_seed_urls()
         if frontier_urls:
             for url in frontier_urls:
@@ -126,20 +123,6 @@ class OenbSpider(scrapy.Spider):
 
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
-
-    def _load_known_urls(self) -> None:
-        """Load already-crawled URLs from the DB to skip re-fetching them."""
-        db_path = getattr(self, "settings", {}).get("SQLITE_DB_PATH") if hasattr(self, "settings") else None
-        if not db_path or not Path(db_path).exists():
-            return
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.execute("SELECT url FROM pages")
-            self._known_urls = {row[0] for row in cursor}
-            conn.close()
-            self.logger.info(f"Loaded {len(self._known_urls)} known URLs — will skip re-fetching")
-        except Exception as e:
-            self.logger.warning(f"Could not load known URLs: {e}")
 
     def _section_start_urls(self, section: str) -> list[str]:
         normalized = section.lower()

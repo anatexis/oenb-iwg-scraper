@@ -903,3 +903,74 @@ def test_navigation_query_ranks_website_main_page_above_dataset_family(tmp_path:
     )
     assert results, "expected hits"
     assert results[0]["id"] == "chunk:statistik"
+
+
+def test_error_page_chunks_are_excluded_from_candidates(tmp_path: Path):
+    # The April crawl stored 403/404 responses; their chunks ("Fehlerseite")
+    # must never become retrieval candidates.
+    site_kb = tmp_path / "site.jsonl"
+    records = [
+        _nav_page_chunk("chunk:error", "Fehlerseite - Oesterreichische Nationalbank (OeNB)",
+                        "https://www.oenb.at/Bargeld.html"),
+        _nav_page_chunk("chunk:statistik", "Statistik - Oesterreichische Nationalbank (OeNB)",
+                        "https://www.oenb.at/Statistik.html"),
+    ]
+    site_kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    results = search_knowledge_base(
+        query="Wo finde ich auf der OeNB-Seite die Statistik-Hauptseite?",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert [r["id"] for r in results] == ["chunk:statistik"]
+
+
+def test_isaweb_chart_and_calendar_pages_get_no_navigation_page_boost():
+    for url in (
+        "https://www.oenb.at/isawebstat/createchart?lang=de&report=1.7.12",
+        "https://www.oenb.at/isawebstat/releasekalender/showreleaseforreport?lang=de&report=1.7.12",
+    ):
+        boost = _query_intent_record_boost(
+            NAV_ROUTING_WEBSITE,
+            {"parent_record_type": "page_document"},
+            title="data chart - einlagen",
+            text="chart inhalt",
+            primary_url=url,
+            source_preference="primary",
+        )
+        assert boost < 500, url
+
+
+def test_release_lookup_still_boosts_releasekalender_portal_pages():
+    boost = _query_intent_record_boost(
+        {"query_intent": "release_lookup", "domains": [], "entities": [], "subqueries": []},
+        {"parent_record_type": "page_document"},
+        title="veroeffentlichungskalender",
+        text="naechste veroeffentlichung",
+        primary_url="https://www.oenb.at/isawebstat/releasekalender/showreleaseforreport?report=2.1",
+        source_preference="secondary",
+    )
+    assert boost >= 900
+
+
+def test_explicit_table_request_keeps_dataset_preference_for_navigation():
+    # "Wo finde ich eine Tabelle mit Zinssaetzen?" explicitly asks for a
+    # table: the page-vs-dataset rebalance must not apply.
+    dataset = {"parent_record_type": "dataset_family"}
+    page = {"parent_record_type": "page_document"}
+    query = "wo finde ich eine tabelle mit oesterreichischen zinssaetzen?"
+    dataset_boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE, dataset,
+        title="basis- und referenzzinssaetze", text="tabelle mit zinssaetzen.",
+        primary_url="https://www.oenb.at/isawebstat/stabfrage/createreport?report=2.1",
+        source_preference="primary", query=query,
+    )
+    page_boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE, page,
+        title="finanzkennzahlen", text="seite.",
+        primary_url="https://www.oenb.at/statistik/standardisierte-tabellen/oenb-eurosystem.html",
+        source_preference="primary", query=query,
+    )
+    assert dataset_boost >= 0, "no dataset penalty when the query asks for a table"
+    assert page_boost < 800, "no full page boost when the query asks for a table"

@@ -106,10 +106,24 @@ def _matching_chunk_records(
     for record in iter_records:
         if record.get("record_type") != "chatbot_chunk":
             continue
+        if _is_error_page_chunk(record):
+            continue
         haystack = _search_haystack(record)
         if _is_candidate_match(haystack, query_tokens, strong_terms):
             records.append(record)
     return records
+
+
+_ERROR_TITLE_MARKERS = ("fehlerseite", "403 forbidden", "404 not found", "page not found")
+
+
+def _is_error_page_chunk(record: dict) -> bool:
+    """Crawled 403/404 responses ended up in the KB — never surface them."""
+    title = (record.get("title") or "").lower()
+    text = (record.get("text") or "").lower()
+    if any(title.startswith(marker) or marker in title for marker in _ERROR_TITLE_MARKERS):
+        return True
+    return text.startswith("403 forbidden") or text.startswith("404 not found")
 
 
 def _rank_hits(records: list[dict], *, query: str, source_preference: str, routed_query: dict | None = None) -> list[dict]:
@@ -270,11 +284,17 @@ def _preferred_record_boost(query: str, title: str, primary_url: str) -> int:
 
 
 _DOWNLOAD_QUERY_TERMS = ("csv", "excel", "xlsx", "download", "herunterladen")
+_TABLE_QUERY_TERMS = ("tabelle", "zeitreihe", "time series")
 
 
 def _query_wants_download(query: str) -> bool:
     lowered = query.lower()
     return any(term in lowered for term in _DOWNLOAD_QUERY_TERMS)
+
+
+def _query_wants_table(query: str) -> bool:
+    lowered = query.lower()
+    return any(term in lowered for term in _TABLE_QUERY_TERMS)
 
 
 def _query_intent_record_boost(
@@ -285,17 +305,19 @@ def _query_intent_record_boost(
         return 0
     query_intent = routed_query.get("query_intent")
     parent_record_type = record.get("parent_record_type")
-    # ISAweb portal pages (query UI, data service) must not receive intent
-    # boosts that would outrank dataset_family chunks. Detect them by URL —
-    # under rag_first the KBs are swapped, so source_preference says nothing
-    # about which KB a page is from. Release-calendar portal pages stay
-    # eligible: release_lookup boosts them on purpose.
+    # ISAweb portal pages (query UI, charts, calendar, data service) must not
+    # receive intent boosts that would outrank dataset_family chunks. Detect
+    # them by URL — under rag_first the KBs are swapped, so source_preference
+    # says nothing about which KB a page is from.
     is_isaweb_portal_page = parent_record_type == "page_document" and (
-        "isawebstat/stabfrage" in primary_url or "isadataservice" in primary_url
+        "isawebstat/" in primary_url or "isadataservice" in primary_url
     )
     boost = 0
     if query_intent == "release_lookup":
-        if not is_isaweb_portal_page and ("release" in title or "release" in text or "releasekalender" in primary_url):
+        # releasekalender portal pages are boosted on purpose here.
+        if "releasekalender" in primary_url or (
+            not is_isaweb_portal_page and ("release" in title or "release" in text)
+        ):
             boost += 900
         if parent_record_type == "page_document" and source_preference == "secondary":
             boost += 250
@@ -311,15 +333,17 @@ def _query_intent_record_boost(
                 boost -= 300
         if parent_record_type == "page_document" and source_preference == "secondary":
             boost += 200
-        # Unconditional boosts for navigation: prefer pages/sections over
-        # datasets. +800 closes the structural retrieval_score gap
-        # (dataset_family ~1070 vs page_document 100) together with the -200.
-        if not is_isaweb_portal_page and parent_record_type == "page_document":
-            boost += 800
+        # Prefer pages/sections over datasets — unless the query explicitly
+        # asks for a table/time series, then datasets are the right answer.
+        # +800 closes the structural retrieval_score gap (dataset_family
+        # ~1070 vs page_document 100) together with the -200.
+        if not _query_wants_table(query):
+            if not is_isaweb_portal_page and parent_record_type == "page_document":
+                boost += 800
+            if parent_record_type == "dataset_family":
+                boost -= 200
         if parent_record_type == "section_navigation":
             boost += 300
-        if parent_record_type == "dataset_family":
-            boost -= 200
     if query_intent == "explanation":
         if not is_isaweb_portal_page and parent_record_type == "page_document":
             boost += 400
