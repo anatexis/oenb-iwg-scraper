@@ -43,6 +43,7 @@ def retrieve_chatbot_knowledge(
     secondary_path: Path | None = None,
     limit: int = 10,
     knowledge_base_cache=None,
+    routed_query: dict | None = None,
 ) -> dict:
     if primary_path is None or secondary_path is None:
         resolved_primary, resolved_secondary = default_knowledge_base_paths(base_dir or Path.cwd())
@@ -55,6 +56,7 @@ def retrieve_chatbot_knowledge(
         secondary_path=secondary_path,
         limit=limit,
         knowledge_base_cache=knowledge_base_cache,
+        routed_query=routed_query,
     )
 
 

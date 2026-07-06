@@ -572,8 +572,8 @@ def _make_routed(intent: str) -> dict:
     return {"query_intent": intent, "domains": ["website_general"]}
 
 
-def test_navigation_page_document_secondary_gets_unconditional_500_boost():
-    """page_document in secondary KB gets +500 for navigation, even without download terms."""
+def test_navigation_page_document_secondary_gets_unconditional_800_boost():
+    """page_document in secondary KB gets +800 for navigation, even without download terms."""
     boost = _query_intent_record_boost(
         _make_routed("navigation"),
         {"parent_record_type": "page_document"},
@@ -582,12 +582,12 @@ def test_navigation_page_document_secondary_gets_unconditional_500_boost():
         primary_url="https://www.oenb.at/statistik/zahlungsbilanz.html",
         source_preference="secondary",
     )
-    # Existing +200 (secondary page_document) + new +500 = 700
-    assert boost == 700
+    # Existing +200 (secondary page_document) + unconditional +800 = 1000
+    assert boost == 1000
 
 
 def test_navigation_page_document_secondary_with_download_terms_stacks():
-    """page_document with download terms stacks existing +700 and +200 with new +500."""
+    """page_document stacks +700 (download query) with +200 (secondary) and +800."""
     boost = _query_intent_record_boost(
         _make_routed("navigation"),
         {"parent_record_type": "page_document"},
@@ -595,19 +595,20 @@ def test_navigation_page_document_secondary_with_download_terms_stacks():
         text="download als csv oder excel",
         primary_url="https://www.oenb.at/statistik/bargeld/download-csv.html",
         source_preference="secondary",
+        query="bargeldumlauf als csv download?",
     )
-    # +700 (download terms) + +200 (secondary) + +500 (new unconditional) = 1400
-    assert boost == 1400
+    # +700 (download query + terms) + +200 (secondary) + +800 (unconditional) = 1700
+    assert boost == 1700
 
 
-def test_navigation_page_document_primary_kb_gets_no_page_boost():
-    """page_document in primary (statistics) KB must NOT get page boosts."""
+def test_navigation_page_document_portal_page_gets_no_page_boost():
+    """ISAweb portal pages (stabfrage UI) must NOT get page boosts."""
     boost = _query_intent_record_boost(
         _make_routed("navigation"),
         {"parent_record_type": "page_document"},
         title="isawebstat portal page",
         text="some portal content",
-        primary_url="https://www.oenb.at/isawebstat/...",
+        primary_url="https://www.oenb.at/isawebstat/stabfrage/createReport?report=2.1",
         source_preference="primary",
     )
     assert boost == 0
@@ -640,19 +641,24 @@ def test_navigation_dataset_family_gets_minus_200_penalty():
     assert boost == -200
 
 
-def test_navigation_dataset_family_with_download_terms_gets_both_penalties():
-    """dataset_family with download terms gets +700 (download terms, not page in primary)
-    -300 (existing download-term dataset_family penalty) -200 (new unconditional) = +200."""
-    boost = _query_intent_record_boost(
-        _make_routed("navigation"),
-        {"parent_record_type": "dataset_family"},
+def test_navigation_dataset_family_with_download_query_gets_both_penalties():
+    """On a download query, dataset_family gets +700 - 300 - 200 = +200;
+    without download intent in the query, only the unconditional -200 applies."""
+    record = {"parent_record_type": "dataset_family"}
+    kwargs = dict(
         title="download csv data",
         text="csv export of interest rates",
         primary_url="https://www.oenb.at/isawebstat/...",
         source_preference="primary",
     )
-    # +700 (download terms, not is_page_in_primary_kb) - 300 (download-term penalty) - 200 (new unconditional) = 200
-    assert boost == 200
+    with_download_query = _query_intent_record_boost(
+        _make_routed("navigation"), record, **kwargs, query="zinsen als csv download?"
+    )
+    plain_query = _query_intent_record_boost(
+        _make_routed("navigation"), record, **kwargs, query="wo finde ich zinsdaten?"
+    )
+    assert with_download_query == 200
+    assert plain_query == -200
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +686,7 @@ def test_explanation_page_document_primary_kb_gets_no_boost():
         {"parent_record_type": "page_document"},
         title="isawebstat portal",
         text="portal content",
-        primary_url="https://www.oenb.at/isawebstat/...",
+        primary_url="https://www.oenb.at/isawebstat/stabfrage/createReport?report=2.1",
         source_preference="primary",
     )
     assert boost == 0
@@ -773,3 +779,127 @@ def test_no_routed_query_returns_zero():
         source_preference="secondary",
     )
     assert boost == 0
+
+
+NAV_ROUTING_WEBSITE = {
+    "query_intent": "navigation",
+    "domains": ["website_general"],
+    "entities": [],
+    "subqueries": [],
+    "strategy": "rag_first",
+}
+
+
+def _nav_page_chunk(chunk_id, title, url, retrieval_score=100):
+    return {
+        "record_type": "chatbot_chunk",
+        "id": chunk_id,
+        "parent_id": f"parent:{chunk_id}",
+        "parent_record_type": "page_document",
+        "title": title,
+        "text": f"{title} Inhalt.",
+        "reference_urls": [url],
+        "retrieval_score": retrieval_score,
+    }
+
+
+def test_navigation_boost_applies_to_website_pages_even_when_searched_as_primary():
+    # Under rag_first, hybrid_retrieval swaps paths so the full-site KB is
+    # searched as "primary". Website pages must still receive the navigation
+    # boost — only ISAweb portal pages are exempt.
+    website_page = _nav_page_chunk(
+        "chunk:site", "Statistik", "https://www.oenb.at/Statistik.html"
+    )
+    boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE,
+        website_page,
+        title="statistik",
+        text="statistik inhalt.",
+        primary_url="https://www.oenb.at/statistik.html",
+        source_preference="primary",
+    )
+    assert boost >= 500
+
+
+def test_navigation_boost_still_excluded_for_isaweb_portal_pages():
+    portal_page = _nav_page_chunk(
+        "chunk:portal",
+        "ISAweb Abfrage",
+        "https://www.oenb.at/isawebstat/stabfrage/createReport?lang=DE&report=2.1",
+    )
+    boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE,
+        portal_page,
+        title="isaweb abfrage",
+        text="isaweb abfrage inhalt.",
+        primary_url="https://www.oenb.at/isawebstat/stabfrage/createreport?lang=de&report=2.1",
+        source_preference="primary",
+    )
+    assert boost < 500
+
+
+def test_navigation_download_boost_requires_download_terms_in_query(tmp_path: Path):
+    # Every dataset_family summary mentions "Tabelle" — the +700 download
+    # boost must key off the *query*, not the record text, or datasets
+    # outrank pages on every navigation question.
+    dataset_chunk = {
+        "record_type": "chatbot_chunk",
+        "id": "chunk:ds",
+        "parent_id": "family:ds",
+        "parent_record_type": "dataset_family",
+        "title": "Versicherungsstatistik - Aktiva",
+        "text": "Tabelle mit Zeitreihen zur Versicherungsstatistik.",
+        "reference_urls": ["https://www.oenb.at/isawebstat/stabfrage/createReport?report=3.17.3"],
+        "retrieval_score": 1070,
+    }
+    plain_nav_boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE,
+        dataset_chunk,
+        title=dataset_chunk["title"].lower(),
+        text=dataset_chunk["text"].lower(),
+        primary_url=dataset_chunk["reference_urls"][0].lower(),
+        source_preference="primary",
+        query="wo finde ich die statistik-hauptseite?",
+    )
+    download_nav_boost = _query_intent_record_boost(
+        NAV_ROUTING_WEBSITE,
+        dataset_chunk,
+        title=dataset_chunk["title"].lower(),
+        text=dataset_chunk["text"].lower(),
+        primary_url=dataset_chunk["reference_urls"][0].lower(),
+        source_preference="primary",
+        query="bargeldumlauf als csv herunterladen?",
+    )
+    assert plain_nav_boost < 0, "dataset must keep its penalty on plain navigation"
+    assert download_nav_boost > plain_nav_boost
+
+
+def test_navigation_query_ranks_website_main_page_above_dataset_family(tmp_path: Path):
+    # End-to-end regression for nav_001: the Statistik main page must beat
+    # legacy dataset_family chunks living in the same (full-site) KB.
+    site_kb = tmp_path / "site.jsonl"
+    records = [
+        _nav_page_chunk("chunk:statistik", "Statistik - Oesterreichische Nationalbank (OeNB)",
+                        "https://www.oenb.at/Statistik.html"),
+        {
+            "record_type": "chatbot_chunk",
+            "id": "chunk:versicherung",
+            "parent_id": "family:versicherung",
+            "parent_record_type": "dataset_family",
+            "title": "Versicherungsstatistik - Aktiva",
+            "text": "Tabelle mit Zeitreihen. Statistik zu Versicherungen.",
+            "reference_urls": ["https://www.oenb.at/isawebstat/stabfrage/createReport?report=3.17.3"],
+            "retrieval_score": 1070,
+        },
+    ]
+    site_kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+
+    results = search_knowledge_base(
+        query="Wo finde ich auf der OeNB-Seite die Statistik-Hauptseite?",
+        primary_path=site_kb,
+        secondary_path=None,
+        limit=5,
+        routed_query=NAV_ROUTING_WEBSITE,
+    )
+    assert results, "expected hits"
+    assert results[0]["id"] == "chunk:statistik"

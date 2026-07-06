@@ -17,6 +17,7 @@ def run_rag_answering(
     debug: bool = False,
     agentic_enabled: bool | None = None,
     knowledge_base_cache=None,
+    routed_query: dict | None = None,
 ) -> dict:
     base = base_dir or Path.cwd()
     config = load_runtime_config(base)
@@ -28,6 +29,7 @@ def run_rag_answering(
         include_debug=debug,
         agentic_enabled=config.agentic_enabled if agentic_enabled is None else agentic_enabled,
         knowledge_base_cache=knowledge_base_cache,
+        routed_query=routed_query,
     )
 
 

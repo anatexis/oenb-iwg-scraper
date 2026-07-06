@@ -24,6 +24,7 @@ def answer_chatbot_question(
     include_debug: bool = False,
     agentic_enabled: bool = False,
     knowledge_base_cache=None,
+    routed_query: dict | None = None,
 ) -> dict:
     base = base_dir or Path.cwd()
     if primary_path is None or secondary_path is None:
@@ -38,6 +39,7 @@ def answer_chatbot_question(
         secondary_path=secondary_path,
         limit=limit,
         knowledge_base_cache=knowledge_base_cache,
+        routed_query=routed_query,
     )
     hits = retrieval_payload["hits"]
     agentic_result = maybe_run_agentic_search(

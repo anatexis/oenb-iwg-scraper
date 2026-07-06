@@ -40,7 +40,7 @@ def test_run_chatbot_eval_fixture_executes_cases_and_writes_summary(tmp_path, mo
     )
     output_path = tmp_path / "report.json"
 
-    def fake_run_rag_answering(query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None):
+    def fake_run_rag_answering(query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None, routed_query=None):
         return {
             "query": query,
             "answer_type": "dataset_family" if "Leitzins" in query else "not_found",
@@ -103,7 +103,7 @@ def test_run_chatbot_eval_fixture_reuses_single_knowledge_base_cache(tmp_path, m
     seen_cache_ids: list[int] = []
 
     def fake_run_rag_answering(
-        query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None
+        query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None, routed_query=None
     ):
         seen_cache_ids.append(id(knowledge_base_cache))
         return {
@@ -149,7 +149,7 @@ def test_run_chatbot_eval_fixture_scores_cases_with_expect_blocks(tmp_path, monk
     )
     output_path = tmp_path / "report.json"
 
-    def fake_run_rag_answering(query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None):
+    def fake_run_rag_answering(query, *, base_dir=None, debug=False, agentic_enabled=None, knowledge_base_cache=None, routed_query=None):
         if "Statistik" in query:
             return {
                 "query": query,

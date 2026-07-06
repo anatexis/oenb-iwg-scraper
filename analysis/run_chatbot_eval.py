@@ -19,8 +19,17 @@ def run_chatbot_eval_fixture(
     base_dir: Path | None = None,
     debug: bool = False,
     agentic_enabled: bool | None = None,
+    replay_routing_path: Path | None = None,
 ) -> dict:
     cases = json.loads(fixture_path.read_text(encoding="utf-8"))
+    routing_by_id: dict[str, dict] = {}
+    if replay_routing_path is not None:
+        replay_report = json.loads(replay_routing_path.read_text(encoding="utf-8"))
+        routing_by_id = {
+            c["id"]: c["result"]["routing"]
+            for c in replay_report.get("cases", [])
+            if c.get("result", {}).get("routing")
+        }
     output_cases: list[dict] = []
     answer_types: Counter[str] = Counter()
     failure_layers: Counter[str] = Counter()
@@ -33,6 +42,7 @@ def run_chatbot_eval_fixture(
             debug=debug,
             agentic_enabled=agentic_enabled,
             knowledge_base_cache=knowledge_base_cache,
+            routed_query=routing_by_id.get(case.get("id")),
         )
         output_cases.append(
             {
@@ -78,6 +88,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-dir", type=Path, default=Path.cwd(), help="Worktree root containing data/")
     parser.add_argument("--debug", action="store_true", help="Include routing/retrieval debug data")
     parser.add_argument("--agentic", action="store_true", help="Enable selective live ISAweb lookup")
+    parser.add_argument(
+        "--replay-routing",
+        type=Path,
+        default=None,
+        help="Reuse routing decisions from a previous report (skips the LLM router)",
+    )
     return parser
 
 
@@ -89,5 +105,6 @@ if __name__ == "__main__":
         base_dir=args.base_dir,
         debug=args.debug,
         agentic_enabled=args.agentic,
+        replay_routing_path=args.replay_routing,
     )
     print(json.dumps(report["summary"], indent=2, ensure_ascii=False))
