@@ -186,3 +186,17 @@ class TestFixtureExpectations:
         for case in cases:
             is_ood = case["type"] == "OOD"
             assert bool(case.get("expect", {}).get("reject")) == is_ood, case["id"]
+
+    def test_fixture_covers_all_required_question_types(self):
+        import json
+        from pathlib import Path
+
+        cases = json.loads(
+            Path("tests/fixtures/chatbot_eval_v2.json").read_text(encoding="utf-8")
+        )
+        types = {c["type"] for c in cases}
+        required = {"NAV", "FACT", "TABLE", "META", "COMPARE", "LEGAL", "OOD"}
+        assert required <= types, f"missing: {required - types}"
+        counts = {t: sum(1 for c in cases if c["type"] == t) for t in required}
+        assert counts["COMPARE"] >= 3, counts
+        assert counts["LEGAL"] >= 4, counts

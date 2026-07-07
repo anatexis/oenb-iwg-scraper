@@ -11,8 +11,10 @@
         "/en/statistics"
       ],
       "keywords_any": [
-        "statistik",
-        "statistics"
+        "Hauptseite",
+        "Uebersicht",
+        "Bereich Statistik",
+        "oenb.at/statistik"
       ]
     }
   },
@@ -175,7 +177,7 @@
       "keywords_any": [
         "english",
         "englisch",
-        "statistics"
+        "/en/"
       ]
     }
   },
@@ -555,10 +557,11 @@
         "interest"
       ],
       "keywords_any": [
-        "quelle",
-        "oenb",
-        "ezb",
-        "source"
+        "Quelle",
+        "EZB",
+        "ECB",
+        "Statistik Austria",
+        "Eurostat"
       ]
     }
   },
@@ -578,10 +581,10 @@
         "vpi"
       ],
       "keywords_any": [
-        "statistik austria",
-        "eurostat",
-        "ezb",
-        "oenb"
+        "Statistik Austria",
+        "Eurostat",
+        "EZB",
+        "Quelle"
       ]
     }
   },
@@ -1043,6 +1046,136 @@
     "notes": "Pokemon shopping - clearly out of domain",
     "expect": {
       "reject": true
+    }
+  },
+  {
+    "id": "legal_001",
+    "query": "Auf welcher Rechtsgrundlage beruht das Meldewesen der OeNB?",
+    "type": "LEGAL",
+    "expected_answer_mode": "legal_reference",
+    "notes": "Should reference Meldewesen legal basis (BWG, EZB-Verordnungen)",
+    "expect": {
+      "url_patterns": [
+        "meldewesen",
+        "rechtliche-grundlagen",
+        "gesetz"
+      ],
+      "keywords_any": [
+        "Rechtsgrundlage",
+        "Gesetz",
+        "Verordnung",
+        "BWG",
+        "Bankwesengesetz"
+      ]
+    }
+  },
+  {
+    "id": "legal_002",
+    "query": "Welche gesetzlichen Aufgaben hat die Oesterreichische Nationalbank?",
+    "type": "LEGAL",
+    "expected_answer_mode": "legal_reference",
+    "notes": "Should reference Nationalbankgesetz / Aufgaben page (/Ueber-Uns/Aufgaben)",
+    "expect": {
+      "url_patterns": [
+        "aufgaben",
+        "rechtliche-grundlagen",
+        "ueber-uns"
+      ],
+      "keywords_any": [
+        "Nationalbankgesetz",
+        "Aufgaben",
+        "gesetzlich"
+      ]
+    }
+  },
+  {
+    "id": "legal_003",
+    "query": "Wo finde ich die Meldebestimmungen fuer Banken?",
+    "type": "LEGAL",
+    "expected_answer_mode": "page_navigation",
+    "notes": "Should point to /meldewesen/meldebestimmungen/",
+    "expect": {
+      "url_patterns": [
+        "meldebestimmung",
+        "meldewesen"
+      ],
+      "keywords_any": [
+        "Meldebestimmung",
+        "Meldewesen",
+        "Meldung"
+      ]
+    }
+  },
+  {
+    "id": "legal_004",
+    "query": "Welche Rolle spielt die OeNB bei Finanzsanktionen?",
+    "type": "LEGAL",
+    "expected_answer_mode": "legal_reference",
+    "notes": "Should find /ueber-uns/rechtliche-grundlagen/finanzsanktionen.html",
+    "expect": {
+      "url_patterns": [
+        "sanktion",
+        "rechtliche-grundlagen"
+      ],
+      "keywords_any": [
+        "Sanktion"
+      ]
+    }
+  },
+  {
+    "id": "comp_001",
+    "query": "Was ist der Unterschied zwischen HVPI und VPI?",
+    "type": "COMPARE",
+    "expected_answer_mode": "comparison",
+    "notes": "Should name both indices and their difference (harmonisiert vs. national)",
+    "expect": {
+      "url_patterns": [
+        "preis",
+        "prices",
+        "inflation",
+        "verbraucherpreis"
+      ],
+      "keywords_all": [
+        "HVPI",
+        "VPI"
+      ]
+    }
+  },
+  {
+    "id": "comp_002",
+    "query": "Was unterscheidet Direktinvestitionen von Portfolioinvestitionen?",
+    "type": "COMPARE",
+    "expected_answer_mode": "comparison",
+    "notes": "Should name both investment types",
+    "expect": {
+      "url_patterns": [
+        "direktinvest",
+        "portfolioinvest",
+        "auszenwirtschaft",
+        "external"
+      ],
+      "keywords_all": [
+        "Direktinvest",
+        "Portfolioinvest"
+      ]
+    }
+  },
+  {
+    "id": "comp_003",
+    "query": "Was ist der Unterschied zwischen Basiszinssatz und Leitzins?",
+    "type": "COMPARE",
+    "expected_answer_mode": "comparison",
+    "notes": "Should name both rates (Basiszins national, Leitzins EZB)",
+    "expect": {
+      "url_patterns": [
+        "zinss",
+        "interest-rate",
+        "basis-und-referenz"
+      ],
+      "keywords_all": [
+        "Basiszins",
+        "Leitzins"
+      ]
     }
   }
 ]
