@@ -38,6 +38,9 @@ class SourceMetadata:
     source_extraction_method: str | None = None
 
 
+MAX_SOURCES = 100
+
+
 def extract_source_metadata(html: str) -> SourceMetadata:
     """Extract source and provenance metadata from HTML or plain text."""
 
@@ -46,6 +49,10 @@ def extract_source_metadata(html: str) -> SourceMetadata:
     seen_raw: set[tuple[str, str]] = set()
 
     for method, text, links in _iter_candidates(selector, html or ""):
+        # Cap: giant archive pages otherwise yield >10k junk "sources"
+        # (author names, table fragments) that poison downstream merging.
+        if len(metadata.sources) >= MAX_SOURCES:
+            break
         key = (method, text)
         if key in seen_raw:
             continue
@@ -58,13 +65,15 @@ def extract_source_metadata(html: str) -> SourceMetadata:
 
         if sources:
             metadata.source_text_raw.append(text.strip())
-            _extend_unique(metadata.sources, sources)
+            _extend_unique(metadata.sources, sources[:MAX_SOURCES])
             _extend_unique_dicts(metadata.source_links, links)
             metadata.source_extraction_method = metadata.source_extraction_method or method
 
         if reporting:
             _extend_unique(metadata.reporting_institutions, reporting)
 
+    del metadata.sources[MAX_SOURCES:]
+    del metadata.source_text_raw[MAX_SOURCES:]
     return metadata
 
 
@@ -180,12 +189,17 @@ def _clean_name(value: str) -> str:
 
 
 def _extend_unique(target: list[str], values: list[str]) -> None:
+    existing = set(target)
     for value in values:
-        if value not in target:
+        if value not in existing:
+            existing.add(value)
             target.append(value)
 
 
 def _extend_unique_dicts(target: list[dict[str, str]], values: list[dict[str, str]]) -> None:
+    existing = {tuple(sorted(entry.items())) for entry in target}
     for value in values:
-        if value not in target:
+        key = tuple(sorted(value.items()))
+        if key not in existing:
+            existing.add(key)
             target.append(value)

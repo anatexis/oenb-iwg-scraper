@@ -168,6 +168,10 @@ class DeduplicationPipeline:
 
     def __init__(self):
         self.seen_urls = {}  # url -> item reference
+        # Parallel membership sets: hub URLs (footer links) are seen from
+        # thousands of pages; list-based "not in" merges were quadratic and
+        # starved the crawl reactor.
+        self._seen_sources = {}  # url -> set of source strings
 
     def process_item(self, item, spider):
         url = item.get("url")
@@ -190,11 +194,12 @@ class DeduplicationPipeline:
                 existing_languages.append(language)
                 original_item["found_in_languages"] = existing_languages
 
-            # Merge sources from duplicate
+            # Merge sources from duplicate (set membership, list preserves order)
             existing_sources = original_item.get("sources") or []
-            new_sources = item.get("sources") or []
-            for src in new_sources:
-                if src not in existing_sources:
+            source_set = self._seen_sources[normalized_url]
+            for src in item.get("sources") or []:
+                if src not in source_set:
+                    source_set.add(src)
                     existing_sources.append(src)
             original_item["sources"] = existing_sources
 
@@ -205,6 +210,7 @@ class DeduplicationPipeline:
         item["found_in_languages"] = [language]
         item["link_count"] = 1
         self.seen_urls[normalized_url] = item
+        self._seen_sources[normalized_url] = set(item.get("sources") or [])
         return item
 
 

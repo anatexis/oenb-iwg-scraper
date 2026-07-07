@@ -50,3 +50,14 @@ def test_extract_source_names_preserves_balanced_parentheses():
     result = extract_source_metadata(html)
 
     assert result.sources == ["ECB main refinancing operation (MRO)", "Macrobond"]
+
+
+def test_extract_source_metadata_caps_pathological_source_lists():
+    """Giant archive pages yield >10k junk 'sources' (author names, table
+    fragments). Cap the lists so downstream merging stays sane."""
+    blocks = "\n".join(
+        f"<p>Quelle: Autor {chr(65 + i % 26)}. Nachname{i}</p>" for i in range(500)
+    )
+    metadata = extract_source_metadata(f"<html><body>{blocks}</body></html>")
+    assert len(metadata.sources) <= 100
+    assert len(metadata.source_text_raw) <= 100

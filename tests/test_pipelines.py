@@ -250,3 +250,37 @@ class TestDeduplicationPipeline:
 
         assert result1["found_in_languages"] == ["de"]
         assert result2["found_in_languages"] == ["en"]
+
+
+def test_deduplication_source_merge_scales_linearly():
+    """Source merging must be O(1) per duplicate — hub URLs (footer links)
+    are seen from thousands of pages and used to trigger quadratic list
+    scans that starved the crawl reactor."""
+    import time
+
+    from oenb_scraper.pipelines import DeduplicationPipeline, DuplicateUrlDropItem
+
+    pipeline = DeduplicationPipeline()
+    spider = type("S", (), {"logger": __import__("logging").getLogger("t")})()
+
+    def make_item(i, n):
+        return {
+            "url": "https://www.oenb.at/impressum.html",
+            "language": "de",
+            "sources": [f"Quelle {i}-{j}" for j in range(n)],
+        }
+
+    # Real-world shape: one archive page contributes ~10k sources, then
+    # hundreds of duplicates merge against the grown list.
+    pipeline.process_item(make_item(0, 10000), spider)
+    start = time.perf_counter()
+    for i in range(1, 300):
+        try:
+            pipeline.process_item(make_item(i, 50), spider)
+        except DuplicateUrlDropItem:
+            pass
+    elapsed = time.perf_counter() - start
+    merged = pipeline.seen_urls["https://www.oenb.at/impressum.html"]["sources"]
+    assert len(merged) == 10000 + 299 * 50
+    assert merged[0] == "Quelle 0-0" and merged[-1] == "Quelle 299-49"
+    assert elapsed < 0.5, f"quadratic merge: {elapsed:.1f}s for 300 duplicates"
