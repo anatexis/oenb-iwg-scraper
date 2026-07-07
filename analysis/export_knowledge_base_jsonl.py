@@ -89,6 +89,7 @@ def _page_records(conn: sqlite3.Connection) -> list[dict]:
             pc.extractor_version
         FROM page_content pc
         JOIN pages p ON p.id = pc.page_id
+        WHERE p.status_code IS NULL OR p.status_code < 400
         ORDER BY p.url
         """
     ).fetchall()

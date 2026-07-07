@@ -1782,3 +1782,46 @@ def test_section_navigation_records_skips_small_sections():
         records = _section_navigation_records(conn)
         conn.close()
         assert len(records) == 0
+
+
+def test_export_excludes_error_pages():
+    """Stored 403/404/503 responses must not become page_document records."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "pages.db"
+        output_path = Path(tmpdir) / "knowledge_base.jsonl"
+        conn = init_db(db_path)
+        run_id = start_crawl_run(conn, "https://www.oenb.at/", "TestBot/1.0")
+
+        for url, status, title in (
+            ("https://www.oenb.at/Statistik.html", 200, "Statistik"),
+            ("https://www.oenb.at/Bargeld.html", 404, "Fehlerseite - OeNB"),
+            ("https://www.oenb.at/error.html", 503, "Service Unavailable"),
+        ):
+            page_id = store_page(
+                conn,
+                run_id=run_id,
+                url=url,
+                final_url=url,
+                status_code=status,
+                content_type="text/html",
+                body=f"<html><body>{title}</body></html>".encode(),
+            )
+            conn.execute(
+                """
+                INSERT INTO page_content (page_id, title, text_content, page_section, language, extracted_at, extractor_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (page_id, title, title, "Test", "de", "2026-07-07T08:00:00Z", "v1"),
+            )
+        conn.commit()
+        conn.close()
+
+        export_knowledge_base_jsonl(db_path, output_path)
+
+        records = [json.loads(line) for line in output_path.read_text().splitlines()]
+        page_urls = [r["url"] for r in records if r["record_type"] == "page_document"]
+        assert page_urls == ["https://www.oenb.at/Statistik.html"]
+        chunk_titles = [
+            r.get("title") for r in records if r["record_type"] == "chatbot_chunk"
+        ]
+        assert not any("Fehlerseite" in (t or "") for t in chunk_titles)
