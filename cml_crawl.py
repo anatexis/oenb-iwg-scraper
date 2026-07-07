@@ -19,7 +19,7 @@ import sqlite3
 import threading
 import time
 
-DB_PATH = "data/pages.db"
+DB_PATH = "data/full_site_production/pages.db"
 EXPECTED_PAGES = 10_000  # Ungefaehr so viele Seiten hat die OeNB-Website
 
 
@@ -66,7 +66,7 @@ except ImportError:
     print("Scrapy nicht gefunden, installiere dependencies...")
     subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], check=True)
 
-os.makedirs("data", exist_ok=True)
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # --- Schritt 2: Voll-Crawl mit Fortschrittsanzeige ---
 print(f"\n{'='*60}")
@@ -87,7 +87,7 @@ result = subprocess.run([
           '"oenb_scraper.pipelines.DeduplicationPipeline": 100, '
           '"oenb_scraper.pipelines.FileSizePipeline": 200, '
           '"oenb_scraper.pipelines.SQLitePipeline": 400}',
-    "-s", "SQLITE_DB_PATH=../data/pages.db",
+    "-s", f"SQLITE_DB_PATH=../{DB_PATH}",
 ], check=False)
 os.chdir("..")
 

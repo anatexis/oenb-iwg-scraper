@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 
-DB_PATH = "data/pages.db"
+DB_PATH = "data/full_site_production/pages.db"
 ROUNDS = 30
 PAGES_PER_ROUND = 1000
 PAUSE_SECONDS = 120  # 2 Minuten Pause zwischen Runden
@@ -179,7 +179,7 @@ def get_page_count():
 
 # === Setup ===
 print("=== OeNB Crawler (Runden mit DB-Dupefilter) ===\n")
-os.makedirs("data", exist_ok=True)
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # Dependencies
 try:

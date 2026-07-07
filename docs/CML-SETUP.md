@@ -521,3 +521,46 @@ Nicht deaktivieren.
 - [ ] (Spaeter) LLM-Endpoint identifiziert
 - [ ] (Spaeter) `ask_ollama()` durch `ask_llm()` ersetzt
 - [ ] (Spaeter) Agentic Search (Abschnitt 5) funktioniert
+
+---
+
+## Auswertungs-Pipeline als CML-Jobs (2026-07-07)
+
+Drei Jobs, ein Datenlayout (identisch zu lokal — die Chatbot-Runtime
+erwartet genau diese Pfade):
+
+| Job | Script | Schreibt nach | Dauer | Wie oft |
+|-----|--------|---------------|-------|---------|
+| 1. Website-Crawl | `cml_crawl.py` | `data/full_site_production/pages.db` | ~2–4h | bei Bedarf |
+| 2. ISAweb-Statistik | `cml_isaweb.py` | `data/statistics_production/pages.db` | ~1–2h | bei Bedarf |
+| 3. **Auswertung** | `cml_eval.py` | `data/eval_reports/eval_<datum>.json` | ~30–60 min | beliebig oft |
+
+**Workflow:** Git clone → Job 1 und Job 2 einmal laufen lassen →
+Job 3 wann immer eine frische Auswertung gebraucht wird. Job 3 macht
+alles selbst: Text-Extraktion → KB-Exporte (ohne Fehlerseiten) →
+FTS-Index-Rebuild → 67-Case-Eval → Scoring mit Baseline-Diff gegen
+den letzten Report. Schlägt ein Schritt fehl, wird der Job rot
+(Exit ≠ 0) und das Log zeigt den Schritt.
+
+### LLM-Router anbinden (optional)
+
+Ohne LLM fällt der Router automatisch auf Regeln zurück. Mit LLM
+(empfohlen, realistischer End-to-End-Test): In CML unter
+Project Settings > Advanced > Environment Variables setzen —
+funktioniert mit **jedem OpenAI-kompatiblen Endpoint**
+(CML Model Endpoints, Mistral, vLLM, …):
+
+```
+OENB_LLM_PROVIDER=mistral
+OENB_MISTRAL_BASE_URL=https://<endpoint>   # spricht /v1/chat/completions
+OENB_MISTRAL_MODEL=<modellname>
+OENB_MISTRAL_API_KEY=<key>
+```
+
+### Auswertung lesen
+
+Das Job-Log endet mit der Summary: Score (0–1, pass=1/partial=0.5),
+Verdikte nach Fragetyp (NAV/FACT/TABLE/META/COMPARE/LEGAL/OOD) und dem
+Diff zur Baseline (welche Cases besser/schlechter wurden). Der volle
+Report (jede Frage mit Antwort, Citations, Verdikt und Begründung)
+liegt als JSON in `data/eval_reports/`.
