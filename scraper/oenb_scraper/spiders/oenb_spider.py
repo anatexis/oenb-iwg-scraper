@@ -226,6 +226,7 @@ class OenbSpider(scrapy.Spider):
         page_source_metadata = self._extract_source_metadata(response)
         seen_isaweb_urls: set[str] = set()
         normalized_page_url = normalize_url(page_url)
+        page_section_heading = self._page_section_heading(response)
 
         if not self.skip_isaweb:
             resolved_dataset_request = resolve_dataset_request_from_html(
@@ -249,7 +250,7 @@ class OenbSpider(scrapy.Spider):
             link_text = link.css("::text").get() or ""
             link_text = link_text.strip()
             item_title = self._get_meaningful_title(link_text, full_url)
-            section_heading = self._find_section_heading(link, response)
+            section_heading = page_section_heading
 
             # Check if it's a download
             if self._is_download(full_url):
@@ -286,7 +287,7 @@ class OenbSpider(scrapy.Spider):
                         "title": self._get_meaningful_title(link_text, full_url),
                         "found_on_page": page_url,
                         "page_section": page_section,
-                        "section_heading": self._find_section_heading(link, response),
+                        "section_heading": page_section_heading,
                         "page_date": page_date,
                         "language": page_language,
                     },
@@ -301,7 +302,7 @@ class OenbSpider(scrapy.Spider):
                     title=self._get_meaningful_title(link_text, full_url),
                     found_on_page=page_url,
                     page_section=page_section,
-                    section_heading=self._find_section_heading(link, response),
+                    section_heading=page_section_heading,
                     page_date=page_date,
                     language=page_language,
                     sources=page_source_metadata.sources,
@@ -323,7 +324,7 @@ class OenbSpider(scrapy.Spider):
                     title=self._get_meaningful_title(link_text, full_url),
                     found_on_page=page_url,
                     page_section=page_section,
-                    section_heading=self._find_section_heading(link, response),
+                    section_heading=page_section_heading,
                     page_date=page_date,
                     language=page_language,
                     sources=page_source_metadata.sources,
@@ -770,9 +771,12 @@ class OenbSpider(scrapy.Spider):
             return self.parse_isaweb_meta
         return self.parse
 
-    def _find_section_heading(self, link, response) -> str:
-        """Find the nearest heading above the link."""
-        # Try to find preceding h1, h2, h3
+    def _page_section_heading(self, response) -> str:
+        """Last heading of the page — constant per page, compute it once.
+
+        Calling this per link made large archive pages quadratic
+        (full-document CSS scan for every one of thousands of links).
+        """
         for heading in ["h1", "h2", "h3"]:
             headings = response.css(f"{heading}::text").getall()
             if headings:

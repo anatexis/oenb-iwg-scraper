@@ -239,3 +239,28 @@ def test_statistics_section_uses_real_statistics_seed_and_filter():
     assert spider.start_urls == ["https://www.oenb.at/en/Statistics/Standardized-Tables.html"]
     assert spider._is_internal_link("https://www.oenb.at/en/Statistics/Standardized-Tables.html")
     assert not spider._is_internal_link("https://www.oenb.at/en/Research.html")
+
+
+def test_section_heading_computed_once_per_page():
+    """The heading scan is document-level work — it must run once per page,
+    not once per link (quadratic on large archive pages)."""
+    spider = OenbSpider()
+    calls = {"count": 0}
+    original = spider._page_section_heading
+
+    def counting(response):
+        calls["count"] += 1
+        return original(response)
+
+    spider._page_section_heading = counting
+
+    links = "\n".join(
+        f'<a href="/dam/file{i}.pdf">Download {i}</a>' for i in range(50)
+    )
+    response = HtmlResponse(
+        url="https://www.oenb.at/Publikationen/report.html",
+        body=f"<html><body><h2>Publikationen</h2>{links}</body></html>".encode(),
+        encoding="utf-8",
+    )
+    list(spider.parse(response))
+    assert calls["count"] == 1
