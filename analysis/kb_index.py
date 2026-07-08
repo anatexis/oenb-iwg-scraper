@@ -126,6 +126,9 @@ def search_candidates(jsonl_path: Path, tokens: list[str], *, limit: int = 400) 
         return []
     connection = _connect_readonly(index_path_for(jsonl_path))
     try:
+        # Unweighted BM25: column weighting (title>text) was measured on the
+        # 67-case eval and changed nothing — the noise cases match generic
+        # tokens in titles too. Keep the simple form.
         rows = connection.execute(
             """
             SELECT records.record_json, chunks.rank

@@ -142,6 +142,13 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
         token_hits = len({token for token in query_tokens if _token_in(token, title) or _token_in(token, text)})
         matched_title_tokens = {token for token in query_tokens if _token_in(token, title)}
         title_hits = len(matched_title_tokens)
+        # Real IDF from the FTS index (rank is negative, better = more
+        # negative): rare-term matches outweigh generic ones. The token-length
+        # specificity proxy only applies in the index-less fallback — it
+        # misfires on long-but-common tokens ("oesterreichischen") and would
+        # double-count rarity next to BM25.
+        bm25_rank = record.get("_bm25_rank")
+        bm25_bonus = int(min(500.0, max(0.0, -bm25_rank) * 30)) if bm25_rank is not None else 0
         specificity_bonus = sum(max(0, len(token) - 6) * 12 for token in matched_title_tokens)
         phrase_title_hits = len({token for token in query_tokens if " " in token and _token_in(token, title)})
         preferred_title_hits = len({token for token in preferred_phrases if token in title})
@@ -153,6 +160,7 @@ def _rank_hits(records: list[dict], *, query: str, source_preference: str, route
             + token_hits * 50
             + title_hits * 80
             + specificity_bonus
+            + bm25_bonus
             + phrase_title_hits * 250
             + preferred_title_hits * 500
             + strong_hits * 600

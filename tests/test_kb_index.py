@@ -160,3 +160,40 @@ def test_bm25_blend_lets_rare_token_beat_generic_archive_pages(tmp_path):
         routed_query={"query_intent": "navigation", "domains": ["website_general"], "subqueries": [], "entities": []},
     )
     assert results[0]["id"] == "chunk:finanzsektor"
+
+
+def test_bm25_blend_beats_length_proxy_for_short_rare_terms(tmp_path):
+    # The rare term is SHORT ("hvpi"), the common one LONG
+    # ("oesterreichischen") — the token-length proxy favors the archive
+    # pages, only real IDF (BM25) can rank the target first.
+    from analysis.query_knowledge_base import search_knowledge_base
+
+    kb = tmp_path / "kb.jsonl"
+    records = [
+        _chunk(
+            f"chunk:archiv{i:02d}",
+            f"Daten der oesterreichischen Nationalbank Q{i % 4 + 1}",
+            "Daten der oesterreichischen Nationalbank, Archivausgabe.",
+            f"https://www.oenb.at/Publikationen/archiv-{i}.html",
+        )
+        for i in range(30)
+    ]
+    records.append(
+        _chunk(
+            "chunk:ziel",  # sorts AFTER "chunk:archiv..." — id tiebreak must not save us
+            "HVPI Daten",
+            "HVPI Daten Übersicht.",
+            "https://www.oenb.at/statistik/hvpi.html",
+        )
+    )
+    kb.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+    build_kb_index(kb)
+
+    results = search_knowledge_base(
+        query="hvpi daten oesterreichischen",
+        primary_path=kb,
+        secondary_path=None,
+        limit=5,
+        routed_query={"query_intent": "navigation", "domains": ["website_general"], "subqueries": [], "entities": []},
+    )
+    assert results[0]["id"] == "chunk:ziel"
