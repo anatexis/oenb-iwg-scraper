@@ -745,6 +745,28 @@ Router-Entscheidungen → kein LLM nötig. Aber: ~6h pro Run wenn der Crawler pa
 - table_002: Hits mit Score 2370 vorhanden, trotzdem not_found — **Grounding-Gate verwirft
   Top-Hit ohne Fall-through zu den nächsten Hits** (chatbot_answering). Eigener Bug.
 
+## COMPARE-Answering: 0.336 → 0.366 (2026-07-08, Commit 29e210c)
+
+Vergleichsfragen wurden erkannt, aber downstream ignoriert: Ein-Blob-Suche,
+Ein-Dataset-Antwort, oft ohne beide Subjekte (comp_001 „HVPI vs VPI" → World
+commodity prices). Fix:
+- `extract_comparison_subjects()` zieht [X,Y] lexikalisch aus DE-Mustern
+  („Unterschied zwischen X und Y", „unterscheidet X von Y", „: X oder Y").
+- **Lexik schlägt LLM-Intent**: kleine Router labeln „Was unterscheidet X von Y"
+  oft als topic_overview (comp_002) → das lexikalische Signal erzwingt comparison.
+- Pro Subjekt eine `website_general`-Subquery (breite Suche), zweiteilige Antwort.
+- `_is_candidate_match`: Einzeltoken-Query („HVPI") ist maßgeblich, matcht auch
+  kurz — der ≥6-Zeichen-Spezifitätsschutz warf Akronym-Subjekte fälschlich raus.
+
+**Gemessen (Replay): 0.336 → 0.366, null Regressionen.** comp_003→pass;
+fact_003/005/009 (auch „Unterschied zwischen") fail→partial. Verbleibende
+COMPARE-Partials sind Retrieval-Qualität (welche Seite pro Subjekt oben rankt;
+dataset_family zitiert den isadataservice-Endpoint statt der Tabellenseite),
+nicht mehr die strukturelle Lücke.
+
+**Score-Verlauf gesamt:** v5 0.267 → v10 0.333 → v11 0.336 → **v15 0.366**.
+Nächste Hebel: NAV Page-vs-Page-Relevanz, LEGAL (1/4), COMPARE-Citation-URL.
+
 ## Eval v11/v12: Frischer Crawl + CML-Pipeline validiert (2026-07-08)
 
 **Crawl 2026-07-07c:** `finish_reason: finished`, 10.919 Fetches in 2h47min, 0 Stalls
