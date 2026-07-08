@@ -745,6 +745,25 @@ Router-Entscheidungen → kein LLM nötig. Aber: ~6h pro Run wenn der Crawler pa
 - table_002: Hits mit Score 2370 vorhanden, trotzdem not_found — **Grounding-Gate verwirft
   Top-Hit ohne Fall-through zu den nächsten Hits** (chatbot_answering). Eigener Bug.
 
+## Eval v11/v12: Frischer Crawl + CML-Pipeline validiert (2026-07-08)
+
+**Crawl 2026-07-07c:** `finish_reason: finished`, 10.919 Fetches in 2h47min, 0 Stalls
+(nach den zwei Quadrat-Fixes fb3d7b0 + 65e3a8f). DB: 7.445 → 10.475 Seiten (+3.030 neue).
+Full-Site-KB: 7.353 → **25.945 Records**.
+
+**cml_eval.py End-to-End-Smoke-Test (lokal):** alle 6 Schritte grün, ~2,3h total
+(davon 60 min Statistik-KB-Export, 70 min Eval mit CPU-Ollama-Router).
+Eval v11 (67 Cases, frisches Routing): **Score 0.336**, OOD 5/5, COMPARE 4× partial
+(Retrieval findet die richtigen Inhalte, Answering nennt nur eine Seite), LEGAL 1/4.
+
+**v12-Replay (neue KB, alte v5-Routings) vs v10 (alte KB): +2/−2 = neutral.**
+Die „Regressionen" (nav_001, meta_002) sind die entfernten Billig-Partials aus der
+Keyword-Schärfung — ehrlicheres Scoring, nicht schlechtere Antworten.
+→ Zweite Bestätigung der März-Lektion: Coverage ist nicht der Engpass.
+
+**Nächste Hebel (unverändert):** BM25-Blend (`_bm25_rank` liegt an jedem Kandidaten),
+COMPARE-Answering (beide Vergleichsseiten nennen), NAV Page-Relevanz.
+
 ## FTS5-Index + Umlaut-Folding (2026-07-06, Commits 977d8c5, 9c683de)
 
 **analysis/kb_index.py:** Sidecar-Index `KB.jsonl.index.db` (FTS5 über Chunks, umlaut-gefoldet,
