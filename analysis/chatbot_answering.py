@@ -304,7 +304,7 @@ def _primary_grounding_terms(query: str, routing: dict) -> list[str]:
 
 def _should_render_subquery_answers(query: str, routing: dict) -> bool:
     query_intent = routing.get("query_intent")
-    if query_intent in {"release_lookup", "navigation"}:
+    if query_intent in {"release_lookup", "navigation", "comparison"}:
         return True
     if query_intent == "topic_overview":
         lowered = query.lower()

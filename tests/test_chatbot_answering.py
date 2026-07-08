@@ -1003,3 +1003,52 @@ def test_all_ungrounded_hits_still_produce_not_found(tmp_path, monkeypatch):
         secondary_path=tmp_path / "site.jsonl",
     )
     assert answer["answer_type"] == "not_found"
+
+
+def test_comparison_answer_names_both_subjects(tmp_path, monkeypatch):
+    """A comparison query must yield a multi_part answer naming both sides."""
+    routing = {
+        "intent": "comparison",
+        "query_intent": "comparison",
+        "domains": ["commodity_prices"],
+        "entities": [],
+        "subqueries": [],
+        "strategy": "hybrid",
+        "confidence": 0.6,
+    }
+    hvpi_hit = {
+        "id": "chunk:hvpi", "parent_id": "pd:hvpi", "parent_record_type": "page_document",
+        "title": "HVPI - Harmonisierter Verbraucherpreisindex",
+        "text": "Der HVPI ist europaeisch harmonisiert.",
+        "reference_urls": ["https://www.oenb.at/statistik/hvpi.html"],
+        "source_preference": "secondary",
+    }
+    vpi_hit = {
+        "id": "chunk:vpi", "parent_id": "pd:vpi", "parent_record_type": "page_document",
+        "title": "VPI - Verbraucherpreisindex",
+        "text": "Der VPI ist national.",
+        "reference_urls": ["https://www.oenb.at/statistik/vpi.html"],
+        "source_preference": "secondary",
+    }
+
+    def fake_retrieve(query, **kwargs):
+        return {
+            "hits": [hvpi_hit, vpi_hit],
+            "confidence": 0.6,
+            "routing": routing,
+            "subquery_results": [
+                {"domain": "website_general", "query": "HVPI", "hits": [hvpi_hit]},
+                {"domain": "website_general", "query": "VPI", "hits": [vpi_hit]},
+            ],
+        }
+
+    monkeypatch.setattr("analysis.chatbot_answering.retrieve_chatbot_knowledge", fake_retrieve)
+
+    answer = answer_chatbot_question(
+        "Was ist der Unterschied zwischen HVPI und VPI?",
+        base_dir=tmp_path,
+        primary_path=tmp_path / "stats.jsonl",
+        secondary_path=tmp_path / "site.jsonl",
+    )
+    assert answer["answer_type"] == "multi_part"
+    assert "HVPI" in answer["answer"] and "VPI" in answer["answer"]

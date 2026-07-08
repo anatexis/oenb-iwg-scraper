@@ -264,6 +264,10 @@ def _is_candidate_match(haystack: str, query_tokens: list[str], strong_terms: li
     token_hits = [token for token in query_tokens if _token_in(token, haystack)]
     if not token_hits:
         return False
+    if len(query_tokens) == 1:
+        # Single-token query (e.g. a comparison subject "HVPI"): the one
+        # token is authoritative — match it even when short.
+        return True
     if len(query_tokens) <= 3:
         # Single-hit leniency only for specific tokens — short generic words
         # ("beste") must not qualify a record on their own.

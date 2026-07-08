@@ -6,7 +6,7 @@ from pathlib import Path
 
 from analysis.embedding_backends import SemanticSearchBackend
 from analysis.query_knowledge_base import search_knowledge_base
-from analysis.query_router import route_query
+from analysis.query_router import extract_comparison_subjects, route_query
 from analysis.semantic_search import apply_semantic_search
 
 
@@ -52,6 +52,13 @@ def retrieve_hybrid(
                 "subquery_results": [],
             }
 
+    # Lexical comparison detection overrides the LLM's query_intent — small
+    # routers routinely mislabel "Was unterscheidet X von Y" as
+    # topic_overview, which would suppress the subject split and the
+    # two-part answer.
+    if routing.get("query_intent") != "comparison" and extract_comparison_subjects(query):
+        routing = {**routing, "query_intent": "comparison"}
+
     search_primary = primary_path
     search_secondary = secondary_path
     swap_source_labels = False
@@ -60,7 +67,11 @@ def retrieve_hybrid(
         search_secondary = primary_path
         swap_source_labels = True
 
-    subqueries = routing.get("subqueries") or _orchestrated_subqueries(query, routing)
+    subqueries = (
+        _comparison_subqueries(query, routing)
+        or routing.get("subqueries")
+        or _orchestrated_subqueries(query, routing)
+    )
 
     if subqueries:
         subquery_results = []
@@ -117,6 +128,22 @@ def retrieve_hybrid(
         "routing": routing,
         "subquery_results": subquery_results,
     }
+
+
+def _comparison_subqueries(query: str, routing: dict | None) -> list[dict]:
+    """For comparison queries, one subquery per compared subject.
+
+    Domain is set to website_general so each subject is searched broadly
+    (no domain filter) — the router's single blob-domain is usually wrong
+    for at least one of the two subjects. Overrides any LLM-supplied
+    subqueries, which tend to carry the same text for both halves.
+    """
+    if not routing or routing.get("query_intent") != "comparison":
+        return []
+    subjects = extract_comparison_subjects(query)
+    if not subjects:
+        return []
+    return [{"domain": "website_general", "query": subject} for subject in subjects]
 
 
 def _orchestrated_subqueries(query: str, routing: dict | None) -> list[dict]:

@@ -1115,6 +1115,43 @@ def _query_phrases(query: str) -> list[str]:
     return phrases
 
 
+_COMPARISON_PATTERNS = (
+    re.compile(r"unterschied\s+zwischen\s+(.+?)\s+und\s+(.+)", re.IGNORECASE),
+    re.compile(r"unterscheidet\s+(.+?)\s+von\s+(.+)", re.IGNORECASE),
+    re.compile(r"vergleich\w*\s+(?:von|zwischen)\s+(.+?)\s+(?:und|mit)\s+(.+)", re.IGNORECASE),
+    re.compile(r":\s*(.+?)\s+oder\s+(.+)", re.IGNORECASE),
+    re.compile(r"\bzwischen\s+(.+?)\s+und\s+(.+)", re.IGNORECASE),
+)
+
+_MAX_SUBJECT_WORDS = 4
+
+
+def _clean_subject(raw: str) -> str:
+    return raw.strip().strip("?.!,:;\"'").strip()
+
+
+def extract_comparison_subjects(query: str) -> list[str] | None:
+    """Extract the two compared subjects from a German comparison query.
+
+    Returns [X, Y] for patterns like "Unterschied zwischen X und Y",
+    "unterscheidet X von Y", "X oder Y" (after a colon), else None.
+    Rejects runaway clauses (subjects longer than a few words) — those are
+    not clean comparisons and splitting them yields garbage subqueries.
+    """
+    for pattern in _COMPARISON_PATTERNS:
+        match = pattern.search(query)
+        if not match:
+            continue
+        left = _clean_subject(match.group(1))
+        right = _clean_subject(match.group(2))
+        if not left or not right:
+            continue
+        if len(left.split()) > _MAX_SUBJECT_WORDS or len(right.split()) > _MAX_SUBJECT_WORDS:
+            return None
+        return [left, right]
+    return None
+
+
 def _infer_query_intent(query: str) -> str:
     lowered = query.lower()
     if "soll ich" in lowered or "sollte ich" in lowered:

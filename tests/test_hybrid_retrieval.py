@@ -399,3 +399,96 @@ def test_retrieve_hybrid_adds_website_subquery_for_navigation_domains(tmp_path: 
     )
 
     assert result["hits"][0]["id"] == "full:bargeld-download"
+
+
+def test_retrieve_hybrid_splits_comparison_into_subject_subqueries(tmp_path: Path):
+    primary_path = tmp_path / "stats.jsonl"
+    secondary_path = tmp_path / "full.jsonl"
+    _write_jsonl(primary_path, [])
+    _write_jsonl(
+        secondary_path,
+        [
+            {
+                "record_type": "chatbot_chunk",
+                "id": "full:hvpi",
+                "parent_id": "page_document:hvpi",
+                "parent_record_type": "page_document",
+                "title": "HVPI - Harmonisierter Verbraucherpreisindex",
+                "text": "Der HVPI ist der europaeisch harmonisierte Preisindex.",
+                "retrieval_score": 100,
+                "reference_urls": ["https://www.oenb.at/statistik/hvpi.html"],
+            },
+            {
+                "record_type": "chatbot_chunk",
+                "id": "full:vpi",
+                "parent_id": "page_document:vpi",
+                "parent_record_type": "page_document",
+                "title": "VPI - Verbraucherpreisindex",
+                "text": "Der VPI ist der nationale oesterreichische Preisindex.",
+                "retrieval_score": 100,
+                "reference_urls": ["https://www.oenb.at/statistik/vpi.html"],
+            },
+        ],
+    )
+
+    result = retrieve_hybrid(
+        "Was ist der Unterschied zwischen HVPI und VPI?",
+        primary_path=primary_path,
+        secondary_path=secondary_path,
+        limit=5,
+        routed_query={
+            "intent": "comparison",
+            "query_intent": "comparison",
+            "domains": ["commodity_prices"],
+            "entities": [],
+            "subqueries": [],
+            "strategy": "hybrid",
+            "confidence": 0.6,
+        },
+    )
+
+    # One subquery per compared subject, searching for that subject term.
+    assert [item["query"] for item in result["subquery_results"]] == ["HVPI", "VPI"]
+    hit_ids = {h["id"] for h in result["hits"]}
+    assert {"full:hvpi", "full:vpi"} <= hit_ids
+
+
+def test_retrieve_hybrid_splits_comparison_even_when_router_says_topic_overview(tmp_path: Path):
+    # The LLM router often mislabels "Was unterscheidet X von Y" as
+    # topic_overview. The lexical subject extractor is authoritative.
+    primary_path = tmp_path / "stats.jsonl"
+    secondary_path = tmp_path / "full.jsonl"
+    _write_jsonl(primary_path, [])
+    _write_jsonl(
+        secondary_path,
+        [
+            {
+                "record_type": "chatbot_chunk", "id": "full:fdi",
+                "parent_id": "pd:fdi", "parent_record_type": "page_document",
+                "title": "Direktinvestitionen", "text": "Direktinvestitionen sind langfristig.",
+                "retrieval_score": 100, "reference_urls": ["https://www.oenb.at/statistik/direktinvestitionen.html"],
+            },
+            {
+                "record_type": "chatbot_chunk", "id": "full:portfolio",
+                "parent_id": "pd:portfolio", "parent_record_type": "page_document",
+                "title": "Portfolioinvestitionen", "text": "Portfolioinvestitionen sind Wertpapiere.",
+                "retrieval_score": 100, "reference_urls": ["https://www.oenb.at/statistik/portfolioinvestitionen.html"],
+            },
+        ],
+    )
+
+    result = retrieve_hybrid(
+        "Was unterscheidet Direktinvestitionen von Portfolioinvestitionen?",
+        primary_path=primary_path,
+        secondary_path=secondary_path,
+        limit=5,
+        routed_query={
+            "intent": "topic_overview", "query_intent": "topic_overview",
+            "domains": ["external_sector"], "entities": [], "subqueries": [],
+            "strategy": "hybrid", "confidence": 0.5,
+        },
+    )
+    assert [item["query"] for item in result["subquery_results"]] == [
+        "Direktinvestitionen", "Portfolioinvestitionen",
+    ]
+    assert result["routing"]["query_intent"] == "comparison"
