@@ -764,6 +764,23 @@ Keyword-Schärfung — ehrlicheres Scoring, nicht schlechtere Antworten.
 **Nächste Hebel (unverändert):** BM25-Blend (`_bm25_rank` liegt an jedem Kandidaten),
 COMPARE-Answering (beide Vergleichsseiten nennen), NAV Page-Relevanz.
 
+### BM25-Blend: gemessen und eingebaut, aber score-neutral (2026-07-08, cb2fd40)
+
+Faktor-Sweep (Replay, v11-Routings, 10s/Lauf): f8=0.291, f15=0.299, f25=0.321 (ohne
+Proxy) — **mit** Proxy f25/f30=0.336 = Baseline, aber 14 statt 13 Passes.
+Titel-gewichtetes BM25 (5:1): kein Unterschied — die Störfälle matchen generische
+Tokens („seite", „oenb") auch in Titeln. Eingebaut: f30, Cap 500, Proxy bleibt.
+
+**Trade (dokumentiert):** heilt table_009/meta_010/pub_005→pass, pub_001→partial;
+kostet nav_006/meta_009/pub_008 (geschwätzige Seiten sammeln bm25 über mehrere
+Generik-Tokens im Fließtext). **Lektion: Token-IDF ist als Hebel ausgereizt** —
+pub_008 scheitert z.B. daran, dass „working" ein EN-Stopword ist und
+„forschungspapiere" nirgends matcht. Die nächsten Punkte liegen in:
+1. **COMPARE-Answering** (alle 4 COMPARE partial: richtiger Content, Antwort nennt
+   nur eine Seite) — klarster Hebel, ~4 Cases.
+2. NAV Page-vs-Page-Relevanz (Hub-Seiten vs. Geschwätz) — braucht strukturelle
+   Signale (URL-Tiefe, Seitentyp), nicht mehr Lexik.
+
 ## FTS5-Index + Umlaut-Folding (2026-07-06, Commits 977d8c5, 9c683de)
 
 **analysis/kb_index.py:** Sidecar-Index `KB.jsonl.index.db` (FTS5 über Chunks, umlaut-gefoldet,
